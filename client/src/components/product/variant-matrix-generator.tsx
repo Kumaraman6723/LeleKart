@@ -128,7 +128,7 @@ export function VariantMatrixGenerator({
 
       setAttributes([
         { name: "Color", values: Array.from(colors) },
-        { name: "Size", values: Array.from(sizes) },
+        { name: "Size", values: Array.from(sizes), optional: true },
       ]);
 
       // Also load the variant images
@@ -172,7 +172,7 @@ export function VariantMatrixGenerator({
   useEffect(() => {
     if (
       step === "configure" &&
-      attributes.every((attr) => attr.values.length > 0)
+      attributes.some((attr) => attr.values.length > 0)
     ) {
       // Log the current state before generating rows
       console.log("Before generating rows - State:", {
@@ -277,10 +277,13 @@ export function VariantMatrixGenerator({
     return combinations;
   };
 
-  const generateDefaultVariantImage = (color: string, size: string): string => {
+  const generateDefaultVariantImage = (
+    color: string,
+    size?: string
+  ): string => {
     // Generate a placeholder image URL based on color and size
     const encodedColor = encodeURIComponent(color);
-    const encodedSize = encodeURIComponent(size);
+    const encodedSize = size ? encodeURIComponent(size) : "";
     return `https://placehold.co/400x400/${encodedColor}/white?text=${encodedSize}`;
   };
 
@@ -344,7 +347,7 @@ export function VariantMatrixGenerator({
       // Generate default image if no images exist
       const defaultImage =
         rowImages.length === 0
-          ? [generateDefaultVariantImage(combo["Color"], combo["Size"] || "")]
+          ? [generateDefaultVariantImage(combo["Color"], combo["Size"])]
           : rowImages;
 
       // Create the new row, preserving all existing data
