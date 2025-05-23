@@ -315,20 +315,23 @@ export default function ProductPreviewPage() {
                       </li>
                       <li className="flex items-start gap-2">
                         <span className="text-muted-foreground">•</span>
-                        <span>Return Policy: 7 days</span>
+                        <span>
+                          Return Policy:{" "}
+                          {product?.returnPolicy
+                            ? `${product.returnPolicy} Days`
+                            : "7 Days"}
+                        </span>
                       </li>
                       {product?.warranty ? (
                         <li className="flex items-start gap-2">
                           <span className="text-muted-foreground">•</span>
                           <span>
                             Warranty:{" "}
-                            {product.warranty === 1
-                              ? "1 Year"
-                              : product.warranty > 1
-                              ? `${product.warranty} Years`
-                              : product.warranty < 1 && product.warranty > 0
-                              ? `${product.warranty * 12} Months`
-                              : "No Warranty"}
+                            {product.warranty % 12 === 0
+                              ? `${product.warranty / 12} ${
+                                  product.warranty / 12 === 1 ? "Year" : "Years"
+                                }`
+                              : `${product.warranty} Months`}
                           </span>
                         </li>
                       ) : null}
@@ -348,8 +351,13 @@ export default function ProductPreviewPage() {
                       </div>
                       <ul className="mt-2">
                         <li className="flex items-start gap-2">
-                          <Check className="h-4 w-4 text-green-600" />
-                          <span>7 Day Replacement</span>
+                          <span className="text-muted-foreground">•</span>
+                          <span>
+                            Replacement:{" "}
+                            {product?.returnPolicy
+                              ? `${product.returnPolicy} Days`
+                              : "7 Days"}
+                          </span>
                         </li>
                         <li className="flex items-start gap-2">
                           <Check className="h-4 w-4 text-green-600" />
@@ -402,10 +410,13 @@ export default function ProductPreviewPage() {
 
           {/* Product details tabs */}
           <Card>
-            <CardContent className="pt-6">
+            <CardContent className="pt-2">
               <Tabs defaultValue="description">
-                <TabsList className="grid w-full grid-cols-4">
+                <TabsList className="grid w-full grid-cols-5">
                   <TabsTrigger value="description">Description</TabsTrigger>
+                  <TabsTrigger value="additional">
+                    Additional information
+                  </TabsTrigger>
                   <TabsTrigger value="specifications">
                     Specifications
                   </TabsTrigger>
@@ -424,7 +435,45 @@ export default function ProductPreviewPage() {
                     />
                   </div>
                 </TabsContent>
-
+                <TabsContent value="additional" className="p-2">
+                  <h3 className="font-medium text-lg mb-3">
+                    Additional Information
+                  </h3>
+                  <table className="w-full border rounded text-sm">
+                    <tbody>
+                      <tr className="border-b">
+                        <td className="p-3 font-medium w-1/3 bg-gray-50">
+                          Weight
+                        </td>
+                        <td className="p-3">
+                          {product?.weight !== undefined &&
+                          product?.weight !== null &&
+                          product?.weight !== ""
+                            ? `${product.weight} g`
+                            : "No information available"}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="p-3 font-medium w-1/3 bg-gray-50">
+                          Dimensions
+                        </td>
+                        <td className="p-3">
+                          {product?.length !== undefined &&
+                          product?.width !== undefined &&
+                          product?.height !== undefined &&
+                          product?.length !== null &&
+                          product?.width !== null &&
+                          product?.height !== null &&
+                          product?.length !== "" &&
+                          product?.width !== "" &&
+                          product?.height !== ""
+                            ? `${product.length} × ${product.width} × ${product.height} cm`
+                            : "No information available"}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </TabsContent>
                 <TabsContent value="specifications" className="mt-4">
                   <div className="space-y-4">
                     <h3 className="font-medium">Product Specifications</h3>

@@ -42,6 +42,7 @@ import { apiRequest } from "@/lib/queryClient";
 interface VariantAttribute {
   name: string;
   values: string[];
+  optional?: boolean;
 }
 
 interface VariantMatrixRow {
@@ -86,7 +87,7 @@ export function VariantMatrixGenerator({
   const { toast } = useToast();
   const [attributes, setAttributes] = useState<VariantAttribute[]>([
     { name: "Color", values: [] },
-    { name: "Size", values: [] },
+    { name: "Size", values: [], optional: true },
   ]);
   const [newAttributeValue, setNewAttributeValue] = useState<string>("");
   const [currentAttributeIndex, setCurrentAttributeIndex] = useState<number>(0);
@@ -291,8 +292,13 @@ export function VariantMatrixGenerator({
       return;
     }
 
+    // Filter out optional attributes that have no values
+    const activeAttributes = attributes.filter(
+      (attr) => !attr.optional || attr.values.length > 0
+    );
+
     // Generate all possible combinations of attribute values
-    const combinations = generateVariantCombinations(attributes);
+    const combinations = generateVariantCombinations(activeAttributes);
 
     // Prepare a map of existing row data to preserve configuration during regeneration
     const existingRowsMap: Record<string, VariantMatrixRow> = {};
@@ -321,7 +327,9 @@ export function VariantMatrixGenerator({
 
       // Check if this combination exists in existingVariants
       const existingVariant = existingVariants?.find(
-        (v) => v.color === combo["Color"] && v.size === combo["Size"]
+        (v) =>
+          v.color === combo["Color"] &&
+          (!combo["Size"] || v.size === combo["Size"])
       );
 
       // Create a stable row ID based on attribute values
@@ -336,7 +344,7 @@ export function VariantMatrixGenerator({
       // Generate default image if no images exist
       const defaultImage =
         rowImages.length === 0
-          ? [generateDefaultVariantImage(combo["Color"], combo["Size"])]
+          ? [generateDefaultVariantImage(combo["Color"], combo["Size"] || "")]
           : rowImages;
 
       // Create the new row, preserving all existing data
@@ -454,9 +462,6 @@ export function VariantMatrixGenerator({
       uploadedImages: uploadedImages[rowId] || [],
     });
 
-    // Save the current variant rows to prevent them from disappearing during upload
-    const originalVariantRows = [...variantRows];
-
     // Set the current row being processed
     setImageUploadingForRow(rowId);
     setUploadProgress(0);
@@ -470,7 +475,7 @@ export function VariantMatrixGenerator({
 
         // Create FormData for file upload
         const formData = new FormData();
-        formData.append("file", file); // Using "file" field name to match server expectation
+        formData.append("file", file);
 
         // Perform the upload
         const uploadResponse = await fetch("/api/upload", {
@@ -501,53 +506,30 @@ export function VariantMatrixGenerator({
         uploadedUrls
       );
 
-      // Update the uploaded images map first (this is critical for variant regeneration)
-      // We need to use a callback form to ensure we have the latest state
+      // Update both states atomically to prevent race conditions
+      setVariantRows((prevRows) => {
+        const updatedRows = prevRows.map((row) => {
+          if (row.id === rowId) {
+            return {
+              ...row,
+              images: [...(row.images || []), ...uploadedUrls],
+            };
+          }
+          return row;
+        });
+        return updatedRows;
+      });
+
       setUploadedImages((prev) => {
         const updatedImagesMap = {
           ...prev,
           [rowId]: [...(prev[rowId] || []), ...uploadedUrls],
         };
-        console.log(
-          `Updated uploadedImages map for row ${rowId}:`,
-          updatedImagesMap[rowId]
-        );
         return updatedImagesMap;
       });
 
-      // Clear the file input so the same file can be selected again if needed
+      // Clear the file input
       event.target.value = "";
-
-      // Now update the variant rows
-      // Use functional update to ensure we're working with the latest state
-      setVariantRows((prevRows) => {
-        // If the rows disappeared, restore from our saved copy
-        const rowsToUpdate =
-          prevRows.length > 0 ? prevRows : originalVariantRows;
-
-        // Apply the update to the correct row
-        const updatedRows = [...rowsToUpdate];
-        const rowIndex = updatedRows.findIndex((row) => row.id === rowId);
-
-        if (rowIndex !== -1) {
-          // Create a proper copy of the row with the new images
-          updatedRows[rowIndex] = {
-            ...updatedRows[rowIndex],
-            images: [...(updatedRows[rowIndex].images || []), ...uploadedUrls],
-          };
-
-          console.log(
-            `Updated variant row ${rowId} with images:`,
-            updatedRows[rowIndex].images
-          );
-          return updatedRows;
-        } else {
-          console.warn(
-            `Row with ID ${rowId} not found in variantRows, using original rows`
-          );
-          return rowsToUpdate;
-        }
-      });
 
       toast({
         title: "Images uploaded",
@@ -667,14 +649,6 @@ export function VariantMatrixGenerator({
   };
 
   const addImageByUrl = (rowId: string) => {
-    // Log current state before adding image URL
-    console.log("Before adding image URL - Current state:", {
-      rowId,
-      imageUrl: imageUrlInput,
-      variantRows: variantRows.filter((r) => r.id === rowId),
-      uploadedImages: uploadedImages[rowId] || [],
-    });
-
     if (!imageUrlInput.trim()) {
       toast({
         title: "URL cannot be empty",
@@ -684,36 +658,26 @@ export function VariantMatrixGenerator({
       return;
     }
 
-    // Update the uploaded images map first (this is critical for variant regeneration)
+    // Update both states atomically to prevent race conditions
+    setVariantRows((prev) => {
+      const updatedRows = prev.map((row) => {
+        if (row.id === rowId) {
+          return {
+            ...row,
+            images: [...(row.images || []), imageUrlInput],
+          };
+        }
+        return row;
+      });
+      return updatedRows;
+    });
+
     setUploadedImages((prev) => {
       const updatedImagesMap = {
         ...prev,
         [rowId]: [...(prev[rowId] || []), imageUrlInput],
       };
-      console.log(
-        `Updated uploadedImages map for row ${rowId} with URL:`,
-        updatedImagesMap[rowId]
-      );
       return updatedImagesMap;
-    });
-
-    // Then update the variant rows (create a deep copy to ensure state updates properly)
-    setVariantRows((prev) => {
-      const updatedRows = prev.map((row) => {
-        if (row.id === rowId) {
-          const updatedRow = {
-            ...row,
-            images: [...(row.images || []), imageUrlInput],
-          };
-          console.log(
-            `Updated variant row ${rowId} with URL:`,
-            updatedRow.images
-          );
-          return updatedRow;
-        }
-        return row;
-      });
-      return updatedRows;
     });
 
     setImageUrlInput("");
@@ -798,6 +762,19 @@ export function VariantMatrixGenerator({
       return;
     }
 
+    // Check for invalid price or MRP values
+    const invalidRows = enabledRows.filter(
+      (row) => row.price === 0 || row.mrp === 0
+    );
+    if (invalidRows.length > 0) {
+      toast({
+        title: "Invalid values",
+        description: "Price and MRP cannot be 0 for any variant",
+        variant: "destructive",
+      });
+      return;
+    }
+
     // Convert variant rows to product variants
     const productVariants: ProductVariant[] = enabledRows.map((row) => {
       // Find the color and size values from the attributes
@@ -823,15 +800,16 @@ export function VariantMatrixGenerator({
   };
 
   const moveToNextStep = () => {
-    // Validate that we have values for each attribute
-    const anyEmptyAttributes = attributes.some(
-      (attr) => attr.values.length === 0
-    );
+    // Validate that we have values for required attributes
+    const anyEmptyRequiredAttributes = attributes
+      .filter((attr) => !attr.optional) // Only check non-optional attributes
+      .some((attr) => attr.values.length === 0);
 
-    if (anyEmptyAttributes) {
+    if (anyEmptyRequiredAttributes) {
       toast({
         title: "Missing attribute values",
-        description: "Please add at least one value for each attribute",
+        description:
+          "Please add at least one value for each required attribute",
         variant: "destructive",
       });
       return;

@@ -101,40 +101,61 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
+// Helper function to check if a return policy is a standard one
+const isStandardReturnPolicy = (value?: string | number | null): boolean => {
+  if (!value) return false;
+  const standardPolicies = ["7", "15", "30"];
+  return standardPolicies.includes(value.toString());
+};
+
 // Form validation schema
 const productSchema = z.object({
-  name: z.string().min(5, "Product name must be at least 5 characters"),
-  brand: z.string().optional().nullable(),
-  category: z.string().min(2, "Category is required"),
-  price: z.coerce
-    .number()
-    .min(1, "Price must be greater than 0")
-    .nonnegative("Price cannot be negative"),
-  mrp: z.coerce
-    .number()
-    .min(1, "MRP must be greater than 0")
-    .nonnegative("MRP cannot be negative")
-    .optional()
-    .nullable(),
-  purchasePrice: z.coerce
-    .number()
-    .min(0, "Purchase price cannot be negative")
-    .optional()
-    .nullable(),
-  gstRate: z.coerce
-    .number()
-    .min(0, "GST rate cannot be negative")
-    .max(100, "GST rate cannot exceed 100%")
-    .optional()
-    .nullable(),
-  warranty: z.coerce
-    .number()
-    .min(0, "Warranty cannot be negative")
-    .optional()
-    .nullable(),
+  name: z.string().min(3, "Product name must be at least 3 characters"),
   description: z.string().min(20, "Description must be at least 20 characters"),
-  specifications: z.string().optional().nullable(),
-  sku: z.string().optional().nullable(),
+  specifications: z.string().optional(),
+  price: z
+    .string()
+    .refine((val) => !isNaN(parseFloat(val)) && parseFloat(val) > 0, {
+      message: "Price must be a positive number",
+    }),
+  mrp: z
+    .string()
+    .refine((val) => !isNaN(parseFloat(val)) && parseFloat(val) > 0, {
+      message: "MRP must be a positive number",
+    }),
+  purchasePrice: z
+    .string()
+    .refine((val) => !isNaN(parseFloat(val)) && parseFloat(val) >= 0, {
+      message: "Purchase price must be a non-negative number",
+    })
+    .optional(),
+  gstRate: z
+    .string()
+    .refine(
+      (val) => {
+        if (!val) return true; // Optional field
+        const parsed = parseFloat(val);
+        return !isNaN(parsed) && parsed >= 0 && parsed <= 100;
+      },
+      {
+        message: "GST rate must be between 0 and 100%",
+      }
+    )
+    .optional(),
+  sku: z.string().min(2, "SKU is required"),
+  category: z.string().min(1, "Please select a category"),
+  subcategory: z.string().optional(),
+  subcategoryId: z
+    .union([
+      z.number().nullable(),
+      z
+        .string()
+        .nullable()
+        .transform((val) => (val ? Number(val) : null)),
+    ])
+    .optional()
+    .nullable(),
+  brand: z.string().min(2, "Brand name is required"),
   stock: z.coerce
     .number()
     .min(0, "Stock cannot be negative")
@@ -152,59 +173,94 @@ const productSchema = z.object({
 // Main component
 export default function AddProductPage() {
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
-  const [variants, setVariants] = useState<ProductVariant[]>([]);
-  const [draftVariants, setDraftVariants] = useState<ProductVariant[]>([]);
-  const [isAddingVariant, setIsAddingVariant] = useState(false);
-  const [currentVariant, setCurrentVariant] = useState<ProductVariant | null>(
-    null
-  );
   const [variantImages, setVariantImages] = useState<string[]>([]);
-  const [newVariantRow, setNewVariantRow] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(
     null
   );
-  const [editVariantDialogOpen, setEditVariantDialogOpen] = useState(false);
-  const [deleteVariantDialogOpen, setDeleteVariantDialogOpen] = useState(false);
+  const [isEditingVariant, setIsEditingVariant] = useState(false);
+  const [isAddingVariant, setIsAddingVariant] = useState(false);
+  const [isDeletingVariant, setIsDeletingVariant] = useState(false);
+  const [variants, setVariants] = useState<ProductVariant[]>([]);
+  const [draftVariants, setDraftVariants] = useState<ProductVariant[]>([]);
+  const [activeTab, setActiveTab] = useState("basic");
+  const [categoryGstRates, setCategoryGstRates] = useState<
+    Record<string, number>
+  >({});
   const { toast } = useToast();
   const [, navigate] = useLocation();
   const queryClient = useQueryClient();
 
-  // Query to fetch categories with GST rates
-  const { data: categoriesData } = useQuery({
+  // Fetch categories for dropdown
+  const { data: categories = [] } = useQuery({
     queryKey: ["/api/categories"],
+    queryFn: async () => {
+      const res = await fetch("/api/categories");
+      if (!res.ok) {
+        throw new Error("Failed to fetch categories");
+      }
+      return res.json();
+    },
   });
 
-  // Process categories for use in select dropdown and get GST rates
-  const categories =
-    categoriesData?.map((category: any) => category.name) || [];
-  const categoryGstRates =
-    categoriesData?.reduce((acc: Record<string, number>, category: any) => {
-      acc[category.name] = parseFloat(category.gstRate) || 0;
-      return acc;
-    }, {}) || {};
+  // Fetch all subcategories
+  const { data: subcategories = [] } = useQuery({
+    queryKey: ["/api/subcategories/all"],
+    queryFn: async () => {
+      const res = await fetch("/api/subcategories/all");
+      if (!res.ok) {
+        throw new Error("Failed to fetch subcategories");
+      }
+      return res.json();
+    },
+  });
+
+  // Process categories to extract GST rates when categories are fetched
+  useEffect(() => {
+    if (categories && Array.isArray(categories) && categories.length > 0) {
+      // Extract GST rates from categories
+      const rates: Record<string, number> = {};
+      categories.forEach((category: any) => {
+        if (category.name && typeof category.gstRate === "number") {
+          rates[category.name] = category.gstRate;
+        } else {
+          rates[category.name] = 18; // Default fallback if gstRate is not set
+        }
+      });
+      setCategoryGstRates(rates);
+    }
+  }, [categories]);
 
   // Form setup with validation
   const form = useForm<z.infer<typeof productSchema>>({
     resolver: zodResolver(productSchema),
     defaultValues: {
       name: "",
-      brand: "",
-      category: "",
-      price: undefined,
-      mrp: undefined,
-      purchasePrice: undefined,
-      gstRate: undefined,
-      warranty: undefined,
       description: "",
       specifications: "",
+      price: "",
+      mrp: "",
+      purchasePrice: "",
+      gstRate: "",
       sku: "",
-      stock: undefined,
-      weight: undefined,
-      length: undefined,
-      width: undefined,
-      height: undefined,
+      category: "",
+      subcategory: "",
+      subcategoryId: null,
+      brand: "",
       color: "",
       size: "",
+      stock: 0,
+      weight: "",
+      height: "",
+      width: "",
+      length: "",
+      warranty: "",
+      hsn: "",
+      tax: "18",
+      productType: "physical",
+      returnPolicy: "7",
+      customReturnPolicy: "",
     },
   });
 
@@ -220,8 +276,8 @@ export default function AddProductPage() {
 
   // Get the currently selected category's GST rate
   const getSelectedCategoryGstRate = (): number => {
-    const selectedCategory = form.getValues("category");
-    return selectedCategory ? categoryGstRates[selectedCategory] || 0 : 0;
+    const selectedCategory = form.watch("category");
+    return categoryGstRates[selectedCategory] || 18; // Default to 18% if not found
   };
 
   // Calculate components of GST-inclusive price
@@ -232,18 +288,18 @@ export default function AddProductPage() {
     finalPrice: number;
   } => {
     // The selling price entered by the user already includes GST
-    const finalPrice = form.getValues("price") || 0;
+    const finalPrice = parseFloat(form.getValues("price")) || 0;
 
     // Use custom GST rate if provided, otherwise use category GST rate
     const customGstRate = form.getValues("gstRate");
     const gstRate =
       customGstRate !== undefined && customGstRate !== null
-        ? parseFloat(customGstRate.toString())
+        ? parseFloat(customGstRate)
         : getSelectedCategoryGstRate();
 
-    // Extract the base price and GST amount from the inclusive price
-    const basePrice = calculateBasePrice(finalPrice, gstRate);
-    const gstAmount = extractGstAmount(finalPrice, gstRate);
+    // Calculate base price and GST amount
+    const basePrice = finalPrice / (1 + gstRate / 100);
+    const gstAmount = finalPrice - basePrice;
 
     return { basePrice, gstRate, gstAmount, finalPrice };
   };
@@ -538,7 +594,7 @@ export default function AddProductPage() {
   // Variant handling methods - Firefox safe implementation
   const handleAddVariant = () => {
     // Prevent adding a new variant if one is already being edited
-    if (currentVariant !== null && newVariantRow) {
+    if (selectedVariant !== null && isAddingVariant) {
       toast({
         title: "Already adding a variant",
         description:
@@ -578,96 +634,91 @@ export default function AddProductPage() {
     };
 
     // Update state with functional updates to prevent race conditions
-    setCurrentVariant(newVariant);
-    setNewVariantRow(true);
+    setSelectedVariant(newVariant);
+    setIsAddingVariant(true);
     setVariantImages([]);
 
     console.log("Added new variant for editing with temporary ID:", tempId);
   };
 
   // Save the currently editing variant
-  const handleSaveNewVariant = () => {
-    if (currentVariant) {
-      // More robust validation for the current variant's required fields
-      if (!currentVariant.sku || currentVariant.sku.trim() === "") {
-        toast({
-          title: "Missing required field: SKU",
-          description: "Please enter a valid SKU for this variant",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Validate price (must be a positive number)
-      if (
-        currentVariant.price === undefined ||
-        currentVariant.price === null ||
-        isNaN(Number(currentVariant.price)) ||
-        Number(currentVariant.price) <= 0
-      ) {
-        toast({
-          title: "Invalid price",
-          description: "Please enter a valid price greater than zero",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Validate stock (must be a non-negative number)
-      if (
-        currentVariant.stock === undefined ||
-        currentVariant.stock === null ||
-        isNaN(Number(currentVariant.stock)) ||
-        Number(currentVariant.stock) < 0
-      ) {
-        toast({
-          title: "Invalid stock quantity",
-          description: "Please enter a valid stock quantity (zero or greater)",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Create variant with images
-      const variantWithImages = { ...currentVariant, images: variantImages };
-
-      // Only add to draftVariants (we'll merge these with variants when submitting the form)
-      setDraftVariants((prevDraftVariants) => {
-        // Check if this variant already exists to avoid duplication
-        const variantExists = prevDraftVariants.some(
-          (v) => v.id === variantWithImages.id
-        );
-        if (variantExists) {
-          // Update the existing variant
-          return prevDraftVariants.map((v) =>
-            v.id === variantWithImages.id ? variantWithImages : v
-          );
-        } else {
-          // Add as a new variant
-          return [...prevDraftVariants, variantWithImages];
-        }
-      });
-
-      // Log current variant count (for debugging)
-      const totalVariants = variants.length + draftVariants.length + 1; // +1 for the one we just added
-      console.log(`Current variant count: ${totalVariants}`);
-
-      // Show success toast
+  const handleSaveNewVariant = (variant: ProductVariant) => {
+    // More robust validation for the current variant's required fields
+    if (!variant.sku || variant.sku.trim() === "") {
       toast({
-        title: "Variant added",
-        description: `New variant has been added successfully (${totalVariants} total variants)`,
+        title: "Missing required field: SKU",
+        description: "Please enter a valid SKU for this variant",
+        variant: "destructive",
       });
-
-      // Reset the variant editing state to close the form
-      // This change allows users to more clearly see they need to click "Add More Variant" again
-      setCurrentVariant(null);
-      setNewVariantRow(false);
-      setVariantImages([]);
-
-      console.log(
-        "Added variant. Click 'Add More Variant' to add another one."
-      );
+      return;
     }
+
+    // Validate price (must be a positive number)
+    if (
+      variant.price === undefined ||
+      variant.price === null ||
+      isNaN(Number(variant.price)) ||
+      Number(variant.price) <= 0
+    ) {
+      toast({
+        title: "Invalid price",
+        description: "Please enter a valid price greater than zero",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate stock (must be a non-negative number)
+    if (
+      variant.stock === undefined ||
+      variant.stock === null ||
+      isNaN(Number(variant.stock)) ||
+      Number(variant.stock) < 0
+    ) {
+      toast({
+        title: "Invalid stock quantity",
+        description: "Please enter a valid stock quantity (zero or greater)",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Only add to draftVariants (we'll merge these with variants when submitting the form)
+    setDraftVariants((prevDraftVariants) => {
+      // Check if this variant already exists to avoid duplication
+      const variantExists = prevDraftVariants.some(
+        (v: ProductVariant) => v.id === variant.id
+      );
+      if (variantExists) {
+        // Update the existing variant
+        return prevDraftVariants.map((v: ProductVariant) =>
+          v.id === variant.id ? variant : v
+        );
+      } else {
+        // Add as a new variant
+        return [...prevDraftVariants, variant];
+      }
+    });
+
+    // Log current variant count (for debugging)
+    const totalVariants =
+      (Array.isArray(variants) ? variants.length : 0) +
+      (Array.isArray(draftVariants) ? draftVariants.length : 0) +
+      1; // +1 for the one we just added
+    console.log(`Current variant count: ${totalVariants}`);
+
+    // Show success toast
+    toast({
+      title: "Variant added",
+      description: `New variant has been added successfully (${totalVariants} total variants)`,
+    });
+
+    // Reset the variant editing state to close the form
+    setSelectedVariant(null);
+    setIsAddingVariant(false);
+    setVariantImages([]);
+
+    console.log("Added variant. Click 'Add More Variant' to add another one.");
   };
 
   // Traditional save variant (for edit modal)
@@ -694,7 +745,7 @@ export default function AddProductPage() {
     }
 
     // Reset the form
-    setCurrentVariant(null);
+    setSelectedVariant(null);
     setVariantImages([]);
     setIsAddingVariant(false);
 
@@ -707,9 +758,9 @@ export default function AddProductPage() {
   // Cancel variant editing - handles both inline and modal editing
   const handleCancelVariant = () => {
     // Only clear the current variant and images
-    setCurrentVariant(null);
+    setSelectedVariant(null);
     setVariantImages([]);
-    setNewVariantRow(false);
+    setIsAddingVariant(false);
 
     // If there are no variants yet (regular or draft), we'll keep the "isAddingVariant" state
     // to show the "Add First Variant" button
@@ -727,7 +778,7 @@ export default function AddProductPage() {
 
       // Set the selected variant and open the edit dialog
       setSelectedVariant(variantCopy);
-      setEditVariantDialogOpen(true);
+      setIsEditingVariant(true);
     } catch (error) {
       console.error("Error in handleEditVariant:", error);
       toast({
@@ -752,7 +803,7 @@ export default function AddProductPage() {
 
     // Set the selected variant and open the delete confirmation dialog
     setSelectedVariant(variant);
-    setDeleteVariantDialogOpen(true);
+    setIsDeletingVariant(true);
   };
 
   // Upload handler for variant images
@@ -826,9 +877,9 @@ export default function AddProductPage() {
 
   // Update current variant field
   const updateVariantField = (field: keyof ProductVariant, value: any) => {
-    if (currentVariant) {
-      setCurrentVariant({
-        ...currentVariant,
+    if (selectedVariant) {
+      setSelectedVariant({
+        ...selectedVariant,
         [field]: value,
       });
     }
@@ -836,6 +887,47 @@ export default function AddProductPage() {
 
   // Form submission handler
   const onSubmit = (data: z.infer<typeof productSchema>) => {
+    setIsSubmitting(true);
+
+    // Create the data structure expected by the server
+    const productData = {
+      name: data.name,
+      description: data.description,
+      specifications: data.specifications,
+      price: parseInt(data.price),
+      mrp: parseInt(data.mrp),
+      purchasePrice: data.purchasePrice
+        ? parseFloat(data.purchasePrice)
+        : undefined,
+      gstRate:
+        data.gstRate ||
+        data.tax ||
+        getSelectedCategoryGstRate().toString() ||
+        "0",
+      category: data.category,
+      subcategory:
+        data.subcategory === "none" ? null : data.subcategory || null,
+      subcategoryId: data.subcategoryId || null,
+      brand: data.brand,
+      color: data.color,
+      size: data.size,
+      imageUrl:
+        uploadedImages[0] || "https://placehold.co/600x400?text=Product+Image",
+      images: JSON.stringify(uploadedImages),
+      stock: parseInt(data.stock),
+      weight: data.weight ? parseFloat(data.weight) : undefined,
+      height: data.height ? parseFloat(data.height) : undefined,
+      width: data.width ? parseFloat(data.width) : undefined,
+      length: data.length ? parseFloat(data.length) : undefined,
+      warranty: data.warranty ? parseInt(data.warranty) : undefined,
+      hsn: data.hsn,
+      productType: data.productType,
+      returnPolicy: isStandardReturnPolicy(data.returnPolicy)
+        ? data.returnPolicy
+        : data.customReturnPolicy,
+      variants: [...variants, ...draftVariants],
+    };
+
     if (uploadedImages.length === 0) {
       toast({
         title: "Images required",
@@ -857,7 +949,7 @@ export default function AddProductPage() {
     }
 
     // First check if we're currently editing a variant that hasn't been saved
-    if (currentVariant && newVariantRow) {
+    if (selectedVariant && isAddingVariant) {
       toast({
         title: "Unsaved variant",
         description:
@@ -909,52 +1001,12 @@ export default function AddProductPage() {
       };
     });
 
-    // Prepare the product data with BOTH snake_case and camelCase to ensure server compatibility
-    const productData = {
-      name: data.name,
-      description: data.description,
-      specifications: data.specifications || "",
-      sku: data.sku || `SKU-${Date.now()}`,
-      price: Number(data.price),
-      mrp: data.mrp ? Number(data.mrp) : null,
-      purchasePrice: data.purchasePrice ? Number(data.purchasePrice) : null,
-      purchase_price: data.purchasePrice ? Number(data.purchasePrice) : null,
-      gstRate: data.gstRate
-        ? data.gstRate.toString()
-        : getSelectedCategoryGstRate().toString(),
-      gst_rate: data.gstRate
-        ? data.gstRate.toString()
-        : getSelectedCategoryGstRate().toString(),
-      warranty: data.warranty ? Number(data.warranty) : null,
-      category: data.category,
-      color: data.color || "",
-      size: data.size || "",
-      tax: data.tax || "18",
-      hsn: data.hsn || "",
-      productType: data.productType || "physical",
-      product_type: data.productType || "physical",
-      returnPolicy: data.returnPolicy || "7",
-      return_policy: data.returnPolicy || "7",
-      imageUrl: uploadedImages[0],
-      image_url: uploadedImages[0],
-      images: JSON.stringify(uploadedImages),
-      stock: data.stock ? Number(data.stock) : 0,
-      weight: data.weight ? Number(data.weight) : null,
-      length: data.length ? Number(data.length) : null,
-      width: data.width ? Number(data.width) : null,
-      height: data.height ? Number(data.height) : null,
-      brand: data.brand || "",
-      isDraft: false,
-      is_draft: false,
-      seller_id: null, // This will be set by the server from the logged in user
-    };
-
     console.log("Submitting product data:", productData);
     console.log("With variants:", processedVariants.length);
 
     // Reset the variant state to prevent any duplicate submissions
-    setCurrentVariant(null);
-    setNewVariantRow(false);
+    setSelectedVariant(null);
+    setIsAddingVariant(false);
 
     // Create the data structure expected by the server
     const requestData = {
@@ -967,101 +1019,61 @@ export default function AddProductPage() {
 
   // Save as draft handler - less strict validation
   const onSaveAsDraft = () => {
-    const data = form.getValues();
+    setIsSavingDraft(true);
 
-    // For draft, we only need a name at minimum
-    if (!data.name) {
-      toast({
-        title: "Product name required",
-        description: "Please provide at least a product name to save as draft",
-        variant: "destructive",
-      });
-      return;
-    }
+    // Get form data
+    const formData = form.getValues();
 
-    // Convert numeric fields to ensure they're numbers not strings, with safe fallbacks
-    const numericPrice = data.price ? parseFloat(data.price.toString()) : 0;
-    const numericStock = data.stock ? parseInt(data.stock.toString()) : 0;
-    const numericMrp = data.mrp ? parseFloat(data.mrp.toString()) : null;
-    const numericPurchasePrice = data.purchasePrice
-      ? parseFloat(data.purchasePrice.toString())
-      : null;
-    const numericWarranty = data.warranty
-      ? parseInt(data.warranty.toString())
-      : null;
-
-    // Make dimensional fields numbers with safe fallbacks
-    const numericWeight = data.weight
-      ? parseFloat(data.weight.toString())
-      : null;
-    const numericLength = data.length
-      ? parseFloat(data.length.toString())
-      : null;
-    const numericWidth = data.width ? parseFloat(data.width.toString()) : null;
-    const numericHeight = data.height
-      ? parseFloat(data.height.toString())
-      : null;
-
-    // Create a placeholder image URL if no images are available
-    const placeholderImage =
-      "https://dummyimage.com/400x400/cccccc/000000.png&text=Draft+Product";
-
-    // Prepare draft data with minimal requirements
-    const draftData = {
-      name: data.name,
-      description: data.description || "Draft product", // Provide default for required field
-      category: data.category || "Uncategorized", // Provide default for required field
-      price: numericPrice,
-      stock: numericStock,
-      // Use both snake_case AND camelCase versions to ensure server compatibility
-
+    // Create the data structure expected by the server
+    const productData = {
+      name: formData.name,
+      description: formData.description,
+      specifications: formData.specifications,
+      price: parseInt(formData.price),
+      mrp: parseInt(formData.mrp),
+      purchasePrice: formData.purchasePrice
+        ? parseFloat(formData.purchasePrice)
+        : undefined,
+      gstRate:
+        formData.gstRate ||
+        formData.tax ||
+        getSelectedCategoryGstRate().toString() ||
+        "0",
+      category: formData.category,
+      subcategory:
+        formData.subcategory === "none" ? null : formData.subcategory || null,
+      subcategoryId: formData.subcategoryId || null,
+      brand: formData.brand,
+      color: formData.color,
+      size: formData.size,
       imageUrl:
-        uploadedImages.length > 0 ? uploadedImages[0] : placeholderImage,
-      images:
-        uploadedImages.length > 0
-          ? JSON.stringify(uploadedImages)
-          : JSON.stringify([placeholderImage]),
-      specifications: data.specifications || "",
-      sku: data.sku || `DRAFT-${Date.now()}`,
-      mrp: numericMrp,
-      purchase_price: numericPurchasePrice,
-      purchasePrice: numericPurchasePrice,
-      gst_rate: data.gstRate
-        ? data.gstRate.toString()
-        : getSelectedCategoryGstRate().toString() || "0",
-      gstRate: data.gstRate
-        ? data.gstRate.toString()
-        : getSelectedCategoryGstRate().toString() || "0",
-      warranty: numericWarranty,
-      tax: data.tax || "18",
-      hsn: data.hsn || "",
-      product_type: data.productType || "physical",
-      productType: data.productType || "physical",
-      type: data.productType || "physical", // Some parts of code might use this field name
-      return_policy: data.returnPolicy || "7",
-      returnPolicy: data.returnPolicy || "7",
-      is_draft: true,
+        uploadedImages[0] || "https://placehold.co/600x400?text=Product+Image",
+      images: JSON.stringify(uploadedImages),
+      stock: parseInt(formData.stock),
+      weight: formData.weight ? parseFloat(formData.weight) : undefined,
+      height: formData.height ? parseFloat(formData.height) : undefined,
+      width: formData.width ? parseFloat(formData.width) : undefined,
+      length: formData.length ? parseFloat(formData.length) : undefined,
+      warranty: formData.warranty ? parseInt(formData.warranty) : undefined,
+      hsn: formData.hsn,
+      productType: formData.productType,
+      returnPolicy: isStandardReturnPolicy(formData.returnPolicy)
+        ? formData.returnPolicy
+        : formData.customReturnPolicy,
+      variants: [...variants, ...draftVariants],
       isDraft: true,
-      color: data.color || "",
-      size: data.size || "",
-      brand: data.brand || "",
-      weight: numericWeight,
-      length: numericLength,
-      width: numericWidth,
-      height: numericHeight,
-      seller_id: null, // This will be set by the server from the logged in user
     };
 
     // Combine regular variants and draft variants for submission
     const combinedVariants = [...variants, ...draftVariants];
 
-    console.log("Saving product draft:", draftData);
+    console.log("Saving product draft:", productData);
     console.log("With variants:", combinedVariants.length);
 
     // Create the data structure expected by the server
     saveDraftMutation.mutate({
       productData: {
-        ...draftData,
+        ...productData,
         variants: combinedVariants,
       },
     });
@@ -1088,19 +1100,17 @@ export default function AddProductPage() {
             <Button
               type="button"
               variant="secondary"
-              disabled={saveDraftMutation.isPending}
+              disabled={isSavingDraft}
               onClick={onSaveAsDraft}
             >
-              {saveDraftMutation.isPending ? "Saving..." : "Save as Draft"}
+              {isSavingDraft ? "Saving..." : "Save as Draft"}
             </Button>
             <Button
               type="submit"
-              disabled={createProductMutation.isPending}
+              disabled={isSubmitting}
               onClick={form.handleSubmit(onSubmit)}
             >
-              {createProductMutation.isPending
-                ? "Submitting..."
-                : "Add Product"}
+              {isSubmitting ? "Submitting..." : "Add Product"}
             </Button>
           </div>
         </div>
@@ -1186,7 +1196,12 @@ export default function AddProductPage() {
                             Category <span className="text-red-500">*</span>
                           </FormLabel>
                           <Select
-                            onValueChange={field.onChange}
+                            onValueChange={(value) => {
+                              field.onChange(value);
+                              // Clear subcategory when category changes
+                              form.setValue("subcategory", "");
+                              form.setValue("subcategoryId", null);
+                            }}
                             defaultValue={field.value}
                           >
                             <FormControl>
@@ -1195,20 +1210,97 @@ export default function AddProductPage() {
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              {categories?.map((category: string) => (
-                                <SelectItem key={category} value={category}>
-                                  {category}
+                              {categories?.map((category: any) => (
+                                <SelectItem
+                                  key={category.id}
+                                  value={category.name}
+                                >
+                                  {category.name}
                                 </SelectItem>
-                              )) || (
-                                <SelectItem value="Electronics">
-                                  Electronics
-                                </SelectItem>
-                              )}
+                              ))}
                             </SelectContent>
                           </Select>
                           <FormMessage />
                         </FormItem>
                       )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="subcategory"
+                      render={({ field }) => {
+                        // Get currently selected category
+                        const selectedCategory = form.watch("category");
+
+                        // Find the category object to get its ID
+                        const categoryObject = categories?.find(
+                          (c: any) => c.name === selectedCategory
+                        );
+
+                        // Filter subcategories by the selected category
+                        const filteredSubcategories =
+                          subcategories?.filter((sc: any) => {
+                            return (
+                              categoryObject &&
+                              sc.categoryId === categoryObject.id
+                            );
+                          }) || [];
+
+                        return (
+                          <FormItem>
+                            <FormLabel>Subcategory</FormLabel>
+                            <FormControl>
+                              <Select
+                                onValueChange={(value) => {
+                                  // Update the subcategory name
+                                  field.onChange(value);
+
+                                  if (value === "none") {
+                                    // If None is selected, set subcategoryId to null
+                                    form.setValue("subcategoryId", null);
+                                    // Also set subcategory to empty string for consistency
+                                    form.setValue("subcategory", "");
+                                  } else {
+                                    // Find the subcategory in the data to get its ID
+                                    const subcategory = subcategories?.find(
+                                      (sc: any) => sc.name === value
+                                    );
+                                    if (subcategory) {
+                                      form.setValue(
+                                        "subcategoryId",
+                                        subcategory.id
+                                      );
+                                    }
+                                  }
+                                }}
+                                value={field.value || "none"}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select a subcategory (optional)" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="none">None</SelectItem>
+                                  {filteredSubcategories.map(
+                                    (subcategory: any) => (
+                                      <SelectItem
+                                        key={subcategory.id}
+                                        value={subcategory.name}
+                                      >
+                                        {subcategory.name}
+                                      </SelectItem>
+                                    )
+                                  )}
+                                </SelectContent>
+                              </Select>
+                            </FormControl>
+                            <FormDescription>
+                              Choose a subcategory for better product
+                              classification
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        );
+                      }}
                     />
                   </div>
 
@@ -2133,8 +2225,8 @@ export default function AddProductPage() {
                         onDeleteVariant={handleDeleteVariant}
                         onEditVariant={handleEditVariant}
                         onSaveNewVariant={handleSaveNewVariant}
-                        newVariantExists={newVariantRow}
-                        currentVariant={currentVariant}
+                        newVariantExists={isAddingVariant}
+                        currentVariant={selectedVariant}
                         onUpdateVariantField={updateVariantField}
                         onCancelNewVariant={handleCancelVariant}
                       />
@@ -2196,9 +2288,9 @@ export default function AddProductPage() {
                   size="lg"
                   className="bg-green-600 hover:bg-green-700 text-white rounded-md shadow-md w-full max-w-md py-6"
                   onClick={form.handleSubmit(onSubmit)}
-                  disabled={createProductMutation.isPending}
+                  disabled={isSubmitting}
                 >
-                  {createProductMutation.isPending ? (
+                  {isSubmitting ? (
                     <>
                       <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                       Submitting Product...
@@ -2378,10 +2470,7 @@ export default function AddProductPage() {
       </div>
 
       {/* Edit Variant Dialog */}
-      <Dialog
-        open={editVariantDialogOpen}
-        onOpenChange={setEditVariantDialogOpen}
-      >
+      <Dialog open={isEditingVariant} onOpenChange={setIsEditingVariant}>
         <DialogContent className="sm:max-w-[650px]">
           <DialogHeader>
             <DialogTitle>Edit Variant</DialogTitle>
@@ -2594,7 +2683,7 @@ export default function AddProductPage() {
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => setEditVariantDialogOpen(false)}
+              onClick={() => setIsEditingVariant(false)}
             >
               Cancel
             </Button>
@@ -2636,7 +2725,7 @@ export default function AddProductPage() {
                       "The variant has been updated. Save the product to apply changes.",
                   });
 
-                  setEditVariantDialogOpen(false);
+                  setIsEditingVariant(false);
                 }
               }}
             >
@@ -2647,10 +2736,7 @@ export default function AddProductPage() {
       </Dialog>
 
       {/* Delete Variant Dialog */}
-      <Dialog
-        open={deleteVariantDialogOpen}
-        onOpenChange={setDeleteVariantDialogOpen}
-      >
+      <Dialog open={isDeletingVariant} onOpenChange={setIsDeletingVariant}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>Delete Variant</DialogTitle>
@@ -2663,7 +2749,7 @@ export default function AddProductPage() {
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => setDeleteVariantDialogOpen(false)}
+              onClick={() => setIsDeletingVariant(false)}
             >
               Cancel
             </Button>
@@ -2687,7 +2773,7 @@ export default function AddProductPage() {
                       "The variant has been deleted. Save the product to apply changes.",
                   });
 
-                  setDeleteVariantDialogOpen(false);
+                  setIsDeletingVariant(false);
                 }
               }}
             >

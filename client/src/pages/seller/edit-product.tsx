@@ -295,6 +295,9 @@ export default function EditProductPage() {
   >({});
   const [activeTab, setActiveTab] = useState<string>("basic");
   const queryClient = useQueryClient();
+  // Add state for image URL input (inside EditProductPage)
+  const [imageUrlInput, setImageUrlInput] = useState("");
+  const [addUrlError, setAddUrlError] = useState("");
 
   // Check both route patterns and use the first match
   const params = editParams || draftEditParams;
@@ -1827,6 +1830,38 @@ export default function EditProductPage() {
     setIsDeleteDialogOpen(false);
   };
 
+  // Handler to add image by URL
+  const isValidImageUrl = (url: string) => {
+    // Basic check for image URL
+    return (
+      /^https?:\/\/.+\.(jpg|jpeg|png|gif|webp)$/i.test(url) ||
+      /^https?:\/\/.+\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i.test(url)
+    );
+  };
+
+  const handleAddImageUrl = () => {
+    setAddUrlError("");
+    const url = imageUrlInput.trim();
+    if (!url) {
+      setAddUrlError("Please enter an image URL.");
+      return;
+    }
+    if (!isValidImageUrl(url)) {
+      setAddUrlError("Please enter a valid image URL (JPG, PNG, GIF, WEBP).");
+      return;
+    }
+    if (uploadedImages.includes(url)) {
+      setAddUrlError("This image is already added.");
+      return;
+    }
+    setUploadedImages([...uploadedImages, url]);
+    setImageUrlInput("");
+    toast({
+      title: "Image added",
+      description: "The image URL has been added.",
+    });
+  };
+
   if (isProductLoading) {
     return (
       <SellerDashboardLayout>
@@ -2733,89 +2768,126 @@ export default function EditProductPage() {
                         </div>
                       </div>
                     )}
-
-                    <div className="mt-6 space-y-4">
+                    <div className="mt-4">
                       <div className="border rounded-md p-4">
                         <h3 className="text-md font-medium mb-3">
                           Select from Media Library
                         </h3>
                         <MultiMediaPicker
                           onSelect={(urls) => {
-                            // Create a new array that combines existing and new images
                             const combinedImages = [...uploadedImages];
-
-                            // Add new images only if they don't already exist
                             for (const url of urls) {
                               if (!combinedImages.includes(url)) {
                                 combinedImages.push(url);
                               }
                             }
-
                             setUploadedImages(combinedImages);
                           }}
                           selectedUrls={uploadedImages}
                           buttonLabel="Browse Media Library"
-                          maxImages={999} // Set a high number instead of 8
+                          maxImages={999}
                         />
-                      </div>
-
-                      <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-                        <Label
-                          htmlFor="upload-image"
-                          className="cursor-pointer"
-                        >
-                          <div className="flex flex-col items-center justify-center space-y-2">
-                            <ImagePlus className="h-10 w-10 text-gray-400" />
-                            <h3 className="text-lg font-medium">
-                              Or Upload New Images
-                            </h3>
-                            <p className="text-sm text-gray-500">
-                              Drag and drop or click to upload (max 5MB each)
-                            </p>
-                            <Button
-                              type="button"
-                              variant="secondary"
-                              className="mt-2"
-                              disabled={isUploading}
-                            >
-                              {isUploading ? (
-                                <>
-                                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                                  Uploading...
-                                </>
-                              ) : (
-                                <>
-                                  <Upload className="h-4 w-4 mr-2" />
-                                  Select Files
-                                </>
-                              )}
-                            </Button>
-                            {isUploading && (
-                              <div className="w-full mt-2">
-                                <Progress
-                                  value={uploadProgress}
-                                  className="h-2 w-full"
-                                />
-                                <p className="text-xs text-right mt-1">
-                                  {uploadProgress}%
-                                </p>
-                              </div>
-                            )}
-                          </div>
-                          <Input
-                            id="upload-image"
-                            type="file"
-                            accept="image/*"
-                            multiple
-                            className="hidden"
-                            onChange={handleImageUpload}
-                            disabled={isUploading} // Remove the uploadedImages.length >= 8 check
-                          />
-                        </Label>
                       </div>
                     </div>
 
-                    <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4">
+                    {/* Row for upload and add URL */}
+                    <div className="flex flex-col md:flex-row gap-6 items-stretch w-full mt-6">
+                      {/* Upload New Images - compact style */}
+                      <div className="flex-1 min-w-0 max-w-md flex items-center justify-center">
+                        <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 w-full flex flex-col items-center justify-center text-center bg-white">
+                          <Label
+                            htmlFor="upload-image"
+                            className="cursor-pointer w-full"
+                          >
+                            <div className="flex flex-col items-center justify-center space-y-1">
+                              <ImagePlus className="h-8 w-8 text-gray-400" />
+                              <h3 className="text-base font-medium">
+                                Or Upload New Images
+                              </h3>
+                              <p className="text-xs text-gray-500">
+                                Drag and drop or click to upload (max 5MB each)
+                              </p>
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                className="mt-1 px-3 py-1 text-sm"
+                                disabled={isUploading}
+                              >
+                                {isUploading ? (
+                                  <>
+                                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                    Uploading...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Upload className="h-4 w-4 mr-2" />
+                                    Select Files
+                                  </>
+                                )}
+                              </Button>
+                              {isUploading && (
+                                <div className="w-full mt-1">
+                                  <Progress
+                                    value={uploadProgress}
+                                    className="h-2 w-full"
+                                  />
+                                  <p className="text-xs text-right mt-1">
+                                    {uploadProgress}%
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                            <Input
+                              id="upload-image"
+                              type="file"
+                              accept="image/*"
+                              multiple
+                              className="hidden"
+                              onChange={handleImageUpload}
+                              disabled={isUploading}
+                            />
+                          </Label>
+                        </div>
+                      </div>
+                      {/* Add Image URL */}
+                      <div className="flex-1 min-w-0 max-w-md border rounded-md p-4 bg-muted/30 flex flex-col justify-center">
+                        <h3 className="text-md font-medium mb-2">
+                          Add Image URL
+                        </h3>
+                        <div className="flex flex-row gap-2 mb-2">
+                          <Input
+                            type="url"
+                            placeholder="https://example.com/product-image.jpg"
+                            value={imageUrlInput}
+                            onChange={(e) => setImageUrlInput(e.target.value)}
+                            className="flex-1"
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") handleAddImageUrl();
+                            }}
+                            aria-label="Image URL"
+                          />
+                          <Button
+                            type="button"
+                            onClick={handleAddImageUrl}
+                            className="bg-blue-500 hover:bg-blue-600 text-white"
+                          >
+                            Add URL
+                          </Button>
+                        </div>
+                        <div className="text-xs text-muted-foreground mb-2">
+                          Enter a direct link to an image (JPG, PNG, GIF, WEBP)
+                        </div>
+                        {addUrlError && (
+                          <div className="text-xs text-red-500 mb-2">
+                            {addUrlError}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Media Library below row */}
+
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4 mt-4">
                       <div className="flex">
                         <Info className="h-5 w-5 text-yellow-500 mr-2" />
                         <div>

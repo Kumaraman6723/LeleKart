@@ -2573,7 +2573,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let isDraft = req.query.isDraft === "true" || userRole === "buyer";
 
       // Use rejected instead of hideRejected
-      let rejected = req.query.rejected === "true" || userRole === "buyer" || req.query.isDraft === "true";
+      let rejected =
+        req.query.rejected === "true" ||
+        userRole === "buyer" ||
+        req.query.isDraft === "true";
 
       if (req.query.approved !== undefined) {
         approved = req.query.approved === "true";
@@ -3230,12 +3233,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log("Creating product with data:", JSON.stringify(productData));
         console.log("Variants received:", variants ? variants.length : 0);
 
+        // Process subcategoryId
+        let subcategoryId = productData.subcategoryId;
+        if (
+          subcategoryId === null ||
+          subcategoryId === "" ||
+          subcategoryId === 0 ||
+          subcategoryId === "0" ||
+          subcategoryId === "none"
+        ) {
+          subcategoryId = null;
+        } else {
+          const parsedValue = Number(subcategoryId);
+          if (isNaN(parsedValue)) {
+            console.log("SubcategoryId is not a valid number, setting to null");
+            subcategoryId = null;
+          } else {
+            subcategoryId = parsedValue;
+          }
+        }
+
         // Ensure field names are in correct snake_case format for database
         const processedProductData = {
           ...productData,
           seller_id: req.user.id, // snake_case for database
           approved: false, // All new products start as unapproved
           is_draft: false, // snake_case for database
+          subcategory_id: subcategoryId, // Add subcategory_id to the processed data
           // Ensure field names are consistent
           image_url: productData.imageUrl || productData.image_url,
           purchase_price:
@@ -3381,167 +3405,180 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(403).json({ error: "Not authorized" });
 
     try {
-      const { productData } = req.body;
+      const { productData, variants } = req.body;
 
-      // Process images
-      let imagesArray = [];
-      let imageUrl = productData.imageUrl || productData.image_url;
+      console.log(
+        "Creating draft product with data:",
+        JSON.stringify(productData)
+      );
+      console.log("Variants received:", variants ? variants.length : 0);
 
-      // If we have imageUrl but no images array, use it
-      if (imageUrl && !imagesArray.length) {
-        imagesArray = [imageUrl];
-      } else if (!imageUrl && imagesArray.length > 0) {
-        // If we have images but no imageUrl, use the first image as imageUrl
-        imageUrl = imagesArray[0];
+      // Process subcategoryId
+      let subcategoryId = productData.subcategoryId;
+      if (
+        subcategoryId === null ||
+        subcategoryId === "" ||
+        subcategoryId === 0 ||
+        subcategoryId === "0" ||
+        subcategoryId === "none"
+      ) {
+        subcategoryId = null;
+      } else {
+        const parsedValue = Number(subcategoryId);
+        if (isNaN(parsedValue)) {
+          console.log("SubcategoryId is not a valid number, setting to null");
+          subcategoryId = null;
+        } else {
+          subcategoryId = parsedValue;
+        }
       }
 
-      // Fallback for empty images
-      if (!imageUrl) {
-        imageUrl = "https://dummyimage.com/400x400/cccccc/000000.png&text=Draft+Product";
-      }
-
-      // Set required fields for a draft product with careful type handling
-      // Use BOTH snake_case and camelCase to ensure both versions are available
-      const draftProductData = {
+      // Ensure field names are in correct snake_case format for database
+      const processedProductData = {
         ...productData,
-        seller_id: req.user.id, // snake_case for SQL queries and logs
-        sellerId: req.user.id, // camelCase for schema validation
-        approved: false, // Drafts are never approved
-        is_draft: true, // snake_case for DB
-        isDraft: true, // camelCase for schema
-        // Ensure at least some valid values for required fields
+        seller_id: req.user.id, // snake_case for database
+        approved: false, // All new products start as unapproved
+        is_draft: true, // Mark as draft
+        subcategory_id: subcategoryId, // Add subcategory_id to the processed data
+        // Ensure field names are consistent
+        image_url: productData.imageUrl || productData.image_url,
+        purchase_price: productData.purchasePrice || productData.purchase_price,
+        gst_rate: productData.gstRate || productData.gst_rate,
+        product_type:
+          productData.productType ||
+          productData.product_type ||
+          productData.type,
+        return_policy: productData.returnPolicy || productData.return_policy,
+        // Handle price field - ensure it's a number and has a default value
         price:
           typeof productData.price === "number"
             ? productData.price
-            : typeof productData.price === "string" && productData.price
-            ? parseFloat(productData.price)
+            : typeof productData.price === "string"
+            ? parseFloat(productData.price) || 0
             : 0,
-        category: productData.category || "Uncategorized",
-        description: productData.description || "Draft product",
-        stock:
-          typeof productData.stock === "number"
-            ? productData.stock
-            : typeof productData.stock === "string" && productData.stock
-            ? parseInt(productData.stock)
-            : 0,
-        // GST rate handling
-        gst_rate:
-          typeof productData.gstRate === "number"
-            ? productData.gstRate
-            : typeof productData.gstRate === "string" && productData.gstRate
-            ? parseFloat(productData.gstRate)
-            : null,
         // Handle dimension fields
-        weight:
-          typeof productData.weight === "number"
-            ? productData.weight
-            : typeof productData.weight === "string" && productData.weight
-            ? parseFloat(productData.weight)
-            : null,
-        length:
-          typeof productData.length === "number"
-            ? productData.length
-            : typeof productData.length === "string" && productData.length
-            ? parseFloat(productData.length)
-            : null,
-        width:
-          typeof productData.width === "number"
-            ? productData.width
-            : typeof productData.width === "string" && productData.width
-            ? parseFloat(productData.width)
-            : null,
-        height:
-          typeof productData.height === "number"
-            ? productData.height
-            : typeof productData.height === "string" && productData.height
-            ? parseFloat(productData.height)
-            : null,
+        weight: productData.weight ? Number(productData.weight) : null,
+        length: productData.length ? Number(productData.length) : null,
+        width: productData.width ? Number(productData.width) : null,
+        height: productData.height ? Number(productData.height) : null,
         // Handle warranty
-        warranty:
-          typeof productData.warranty === "number"
-            ? productData.warranty
-            : typeof productData.warranty === "string" && productData.warranty
-            ? parseInt(productData.warranty)
-            : null,
-        // Properly handle product type fields
-        hsn: productData.hsn || "",
-        tax: productData.tax || "18",
-        type: productData.productType || "physical", // snake_case and proper field name
-        return_policy:
-          productData.returnPolicy || productData.return_policy || "7", // snake_case
-        // Set the images
-        image_url: imageUrl,
-        images: JSON.stringify(imagesArray),
+        warranty: productData.warranty ? Number(productData.warranty) : null,
       };
 
       // Validate numeric fields
-      if (draftProductData.weight !== null && isNaN(draftProductData.weight)) {
+      if (
+        processedProductData.weight !== null &&
+        isNaN(processedProductData.weight)
+      ) {
         throw new Error("Weight must be a valid number");
       }
-      if (draftProductData.length !== null && isNaN(draftProductData.length)) {
+      if (
+        processedProductData.length !== null &&
+        isNaN(processedProductData.length)
+      ) {
         throw new Error("Length must be a valid number");
       }
-      if (draftProductData.width !== null && isNaN(draftProductData.width)) {
+      if (
+        processedProductData.width !== null &&
+        isNaN(processedProductData.width)
+      ) {
         throw new Error("Width must be a valid number");
       }
-      if (draftProductData.height !== null && isNaN(draftProductData.height)) {
+      if (
+        processedProductData.height !== null &&
+        isNaN(processedProductData.height)
+      ) {
         throw new Error("Height must be a valid number");
       }
       if (
-        draftProductData.warranty !== null &&
-        isNaN(draftProductData.warranty)
+        processedProductData.warranty !== null &&
+        isNaN(processedProductData.warranty)
       ) {
         throw new Error("Warranty must be a valid number");
       }
 
       console.log(
-        "Creating draft product with data:",
-        JSON.stringify(draftProductData, null, 2)
+        "Processed draft product data:",
+        JSON.stringify(processedProductData)
       );
 
-      // Create the draft product
-      const product = await storage.createProduct(draftProductData);
+      // Create the main product
+      const product = await storage.createProduct(processedProductData);
 
       // Process variants if any
       let createdVariants = [];
-      if (
-        productData.variants &&
-        Array.isArray(productData.variants) &&
-        productData.variants.length > 0
-      ) {
+      if (variants && Array.isArray(variants) && variants.length > 0) {
         try {
-          // For each variant, set the productId and ensure minimum data
-          const validVariants = productData.variants.map((variant) => ({
-            ...variant,
-            productId: product.id,
-            sku: variant.sku || `DRAFT-VARIANT-${Date.now()}`,
-            price: variant.price || 0,
-            stock: variant.stock || 0,
-          }));
+          console.log("Processing variants for draft productId:", product.id);
+
+          // Clean and prepare variants for database insertion
+          const cleanedVariants = variants.map((variant) => {
+            // Remove temporary client-side IDs and timestamps that could cause errors
+            const { id, createdAt, updatedAt, ...cleanVariant } = variant;
+
+            // Ensure proper data types for numeric fields
+            return {
+              ...cleanVariant,
+              productId: product.id,
+              price:
+                typeof cleanVariant.price === "number"
+                  ? cleanVariant.price
+                  : typeof cleanVariant.price === "string"
+                  ? parseFloat(cleanVariant.price)
+                  : 0,
+              mrp:
+                typeof cleanVariant.mrp === "number"
+                  ? cleanVariant.mrp
+                  : typeof cleanVariant.mrp === "string"
+                  ? parseFloat(cleanVariant.mrp)
+                  : null,
+              stock:
+                typeof cleanVariant.stock === "number"
+                  ? cleanVariant.stock
+                  : typeof cleanVariant.stock === "string"
+                  ? parseInt(cleanVariant.stock)
+                  : 0,
+              // Ensure images is properly formatted as a JSON string
+              images: Array.isArray(cleanVariant.images)
+                ? JSON.stringify(cleanVariant.images)
+                : typeof cleanVariant.images === "string"
+                ? cleanVariant.images
+                : "[]",
+            };
+          });
+
+          console.log(
+            "Prepared variants for draft creation:",
+            JSON.stringify(cleanedVariants)
+          );
 
           // Create all variants in bulk
           createdVariants = await storage.createProductVariantsBulk(
-            validVariants
+            cleanedVariants
+          );
+          console.log(
+            "Successfully created draft variants:",
+            createdVariants.length
           );
         } catch (variantError) {
-          console.error("Error creating draft product variants:", variantError);
-          // Continue without variants if there's an error
+          console.error("Error processing draft variants:", variantError);
+          // Don't fail the entire product creation if variants fail
+          // We'll just return the product without variants
         }
       }
 
-      // Return the created draft product
+      // Return the draft product
       res.status(201).json({
         ...product,
         variants: createdVariants,
-        message: "Your product draft has been saved successfully.",
+        message: "Your draft product has been created successfully.",
       });
     } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
       console.error("Error creating draft product:", error);
-      // Return more detailed error information
-      res.status(500).json({
-        error: "Failed to save product draft",
-        details: error.message || "Unknown error",
-      });
+      res.status(500).json({ error: "Failed to create draft product" });
     }
   });
 
@@ -5180,7 +5217,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           acc[sellerId] = [];
         }
         acc[sellerId].push(item);
-        return acc;
+        return acc as Record<number, typeof cartItems>;
       }, {} as Record<number, typeof cartItems>);
 
       console.log(
