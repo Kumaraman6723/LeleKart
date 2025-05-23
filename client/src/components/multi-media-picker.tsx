@@ -12,12 +12,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Pagination } from "@/components/ui/pagination";
 import {
   getMediaItems,
@@ -25,7 +20,15 @@ import {
   MediaItem,
   formatFileSize,
 } from "@/lib/mediaLibraryApi";
-import { Image, Upload, Search, RefreshCw, X, Plus, ExternalLink } from "lucide-react";
+import {
+  Image,
+  Upload,
+  Search,
+  RefreshCw,
+  X,
+  Plus,
+  ExternalLink,
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -38,11 +41,11 @@ interface MultiMediaPickerProps {
   maxImages?: number;
 }
 
-export function MultiMediaPicker({ 
-  onSelect, 
-  selectedUrls = [], 
+export function MultiMediaPicker({
+  onSelect,
+  selectedUrls = [],
   buttonLabel = "Select Images",
-  maxImages = 8
+  maxImages = 999,
 }: MultiMediaPickerProps) {
   const [open, setOpen] = useState(false);
   const [page, setPage] = useState(1);
@@ -55,33 +58,33 @@ export function MultiMediaPicker({
   const [alt, setAlt] = useState("");
   const [tags, setTags] = useState("");
   const [dragOver, setDragOver] = useState(false);
-  
+
   const { toast } = useToast();
-  
+
   // Media library query
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["/api/media", page, 20, search],
     queryFn: () => getMediaItems(page, 20, search),
     enabled: open, // Only fetch when dialog is open
   });
-  
+
   // Reset selected media IDs when dialog opens
   // but maintain any existing selections from previously selected URLs
   useEffect(() => {
     if (open && data) {
       // Find media items that match the selected URLs
-      const matchingItems = data.items.filter(item => 
+      const matchingItems = data.items.filter((item) =>
         selectedUrls.includes(item.url)
       );
-      
+
       // Set the selected media IDs based on these items
-      setSelectedMediaIds(matchingItems.map(item => item.id));
-      setSelectedMediaItems(prev => {
+      setSelectedMediaIds(matchingItems.map((item) => item.id));
+      setSelectedMediaItems((prev) => {
         // Combine previously selected items with newly matched items
-        const existingIds = prev.map(p => p.id);
+        const existingIds = prev.map((p) => p.id);
         return [
           ...prev,
-          ...matchingItems.filter(item => !existingIds.includes(item.id))
+          ...matchingItems.filter((item) => !existingIds.includes(item.id)),
         ];
       });
     }
@@ -95,7 +98,7 @@ export function MultiMediaPicker({
       setTags("");
     }
   }, [uploadTab]);
-  
+
   // Handle file selection
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -104,19 +107,19 @@ export function MultiMediaPicker({
       setSelectedFiles(filesArray);
     }
   };
-  
+
   // Handle file drop
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     setDragOver(false);
-    
+
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       // Convert FileList to Array
       const filesArray = Array.from(e.dataTransfer.files);
       setSelectedFiles(filesArray);
     }
   };
-  
+
   // Handle upload
   const handleUpload = async () => {
     if (selectedFiles.length === 0) {
@@ -127,54 +130,58 @@ export function MultiMediaPicker({
       });
       return;
     }
-    
+
     try {
       const formData = new FormData();
-      
+
       // Append all files
-      selectedFiles.forEach(file => {
+      selectedFiles.forEach((file) => {
         formData.append("file", file);
       });
-      
+
       if (alt) formData.append("alt", alt);
       if (tags) formData.append("tags", tags);
-      
+
       const response = await uploadMediaItem(formData);
-      
+
       // Handle both single and multiple file uploads
-      if ('items' in response) {
+      if ("items" in response) {
         // Multiple files were uploaded
         const newItems = response.items as MediaItem[];
-        
+
         // Add the new items to the selected media items
-        setSelectedMediaItems(prev => [...prev, ...newItems]);
-        
+        setSelectedMediaItems((prev) => [...prev, ...newItems]);
+
         // Add the new item IDs to the selected media IDs
-        setSelectedMediaIds(prev => [...prev, ...newItems.map(item => item.id)]);
+        setSelectedMediaIds((prev) => [
+          ...prev,
+          ...newItems.map((item) => item.id),
+        ]);
       } else {
         // Single file was uploaded
         const newItem = response as MediaItem;
-        
+
         // Add the new item to the selected media items
-        setSelectedMediaItems(prev => [...prev, newItem]);
-        
+        setSelectedMediaItems((prev) => [...prev, newItem]);
+
         // Add the new item ID to the selected media IDs
-        setSelectedMediaIds(prev => [...prev, newItem.id]);
+        setSelectedMediaIds((prev) => [...prev, newItem.id]);
       }
-      
+
       // Refetch the media library to show the new items
       refetch();
-      
+
       // Switch to browse tab to show the newly uploaded items
       setUploadTab("browse");
-      
+
       toast({
         title: "Upload successful",
-        description: selectedFiles.length === 1 
-          ? "File has been uploaded and selected" 
-          : `${selectedFiles.length} files have been uploaded and selected`,
+        description:
+          selectedFiles.length === 1
+            ? "File has been uploaded and selected"
+            : `${selectedFiles.length} files have been uploaded and selected`,
       });
-      
+
       // Clear the selected files
       setSelectedFiles([]);
     } catch (error: any) {
@@ -185,60 +192,49 @@ export function MultiMediaPicker({
       });
     }
   };
-  
+
   // Handle search
   const handleSearch = () => {
     setSearch(searchInput);
     setPage(1);
   };
-  
+
   // Toggle item selection
   const toggleItemSelection = (item: MediaItem) => {
-    setSelectedMediaItems(prev => {
+    setSelectedMediaItems((prev) => {
       if (selectedMediaIds.includes(item.id)) {
         // Remove item
-        return prev.filter(i => i.id !== item.id);
+        return prev.filter((i) => i.id !== item.id);
       } else {
-        // Add item (if not at max)
-        if (selectedMediaIds.length >= maxImages) {
-          toast({
-            title: "Maximum images reached",
-            description: `You can select up to ${maxImages} images`,
-            variant: "destructive",
-          });
-          return prev;
-        }
+        // Add item
         return [...prev, item];
       }
     });
 
-    setSelectedMediaIds(prev => {
+    setSelectedMediaIds((prev) => {
       if (prev.includes(item.id)) {
         // Remove ID
-        return prev.filter(id => id !== item.id);
+        return prev.filter((id) => id !== item.id);
       } else {
-        // Add ID (if not at max)
-        if (prev.length >= maxImages) {
-          return prev;
-        }
+        // Add ID
         return [...prev, item.id];
       }
     });
   };
-  
+
   // Remove a selected item
   const removeSelectedItem = (itemId: number) => {
-    setSelectedMediaItems(prev => prev.filter(item => item.id !== itemId));
-    setSelectedMediaIds(prev => prev.filter(id => id !== itemId));
+    setSelectedMediaItems((prev) => prev.filter((item) => item.id !== itemId));
+    setSelectedMediaIds((prev) => prev.filter((id) => id !== itemId));
   };
-  
+
   // Handle final selection
   const handleSelect = () => {
-    const urls = selectedMediaItems.map(item => item.url);
+    const urls = selectedMediaItems.map((item) => item.url);
     onSelect(urls);
     setOpen(false);
   };
-  
+
   return (
     <div>
       <div className="space-y-4">
@@ -250,19 +246,21 @@ export function MultiMediaPicker({
             <DialogHeader>
               <DialogTitle>Media Library</DialogTitle>
               <DialogDescription>
-                Select up to {maxImages} media files from your library or upload new ones.
+                Select media files from your library or upload new ones.
               </DialogDescription>
             </DialogHeader>
-            
+
             <div className="flex-grow overflow-hidden flex flex-col">
               {selectedMediaItems.length > 0 && (
                 <div className="bg-muted p-2 mb-4 rounded-md">
                   <div className="flex items-center justify-between mb-2">
-                    <Label>Selected ({selectedMediaItems.length}/{maxImages})</Label>
+                    <Label>
+                      Selected ({selectedMediaItems.length}/{maxImages})
+                    </Label>
                     {selectedMediaItems.length > 0 && (
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         onClick={() => {
                           setSelectedMediaItems([]);
                           setSelectedMediaIds([]);
@@ -274,26 +272,33 @@ export function MultiMediaPicker({
                   </div>
                   <ScrollArea className="whitespace-nowrap h-16">
                     <div className="flex gap-2 items-center">
-                      {selectedMediaItems.map(item => (
-                        <div key={item.id} className="relative group inline-block">
+                      {selectedMediaItems.map((item) => (
+                        <div
+                          key={item.id}
+                          className="relative group inline-block"
+                        >
                           <div className="h-12 w-12 border rounded-md overflow-hidden">
                             {item.mimeType.startsWith("image/") ? (
-                              <img src={item.url} alt={item.alt || ""} className="h-full w-full object-cover" />
+                              <img
+                                src={item.url}
+                                alt={item.alt || ""}
+                                className="h-full w-full object-cover"
+                              />
                             ) : (
                               <div className="h-full w-full flex items-center justify-center bg-accent">
-                                <svg 
-                                  xmlns="http://www.w3.org/2000/svg" 
-                                  width="20" 
-                                  height="20" 
-                                  viewBox="0 0 24 24" 
-                                  fill="none" 
-                                  stroke="currentColor" 
-                                  strokeWidth="2" 
-                                  strokeLinecap="round" 
+                                <svg
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  width="20"
+                                  height="20"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
                                   strokeLinejoin="round"
                                 >
-                                  <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
-                                  <polyline points="14 2 14 8 20 8"/>
+                                  <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+                                  <polyline points="14 2 14 8 20 8" />
                                 </svg>
                               </div>
                             )}
@@ -312,13 +317,17 @@ export function MultiMediaPicker({
                   </ScrollArea>
                 </div>
               )}
-            
-              <Tabs defaultValue="browse" value={uploadTab} onValueChange={(v) => setUploadTab(v as "browse" | "upload")}>
+
+              <Tabs
+                defaultValue="browse"
+                value={uploadTab}
+                onValueChange={(v) => setUploadTab(v as "browse" | "upload")}
+              >
                 <TabsList className="grid w-full grid-cols-2">
                   <TabsTrigger value="browse">Browse Library</TabsTrigger>
                   <TabsTrigger value="upload">Upload New</TabsTrigger>
                 </TabsList>
-                
+
                 <TabsContent value="browse" className="overflow-auto flex-grow">
                   <div className="flex gap-4 mb-4">
                     <div className="relative flex-1">
@@ -328,22 +337,22 @@ export function MultiMediaPicker({
                         className="pl-8"
                         value={searchInput}
                         onChange={(e) => setSearchInput(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                        onKeyDown={(e) => e.key === "Enter" && handleSearch()}
                       />
                     </div>
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       size="icon"
                       onClick={() => {
-                        setSearchInput('');
-                        setSearch('');
+                        setSearchInput("");
+                        setSearch("");
                       }}
                       title="Reset search"
                     >
                       <RefreshCw className="h-4 w-4" />
                     </Button>
                   </div>
-                  
+
                   {isLoading ? (
                     <div className="flex justify-center items-center h-[300px]">
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -351,9 +360,13 @@ export function MultiMediaPicker({
                   ) : !data || data.items.length === 0 ? (
                     <div className="text-center py-10 border rounded-lg">
                       <Image className="mx-auto h-12 w-12 text-muted-foreground" />
-                      <h3 className="mt-4 text-lg font-medium">No media found</h3>
+                      <h3 className="mt-4 text-lg font-medium">
+                        No media found
+                      </h3>
                       <p className="text-sm text-muted-foreground mt-1">
-                        {search ? "Try a different search term" : "Upload your first media item"}
+                        {search
+                          ? "Try a different search term"
+                          : "Upload your first media item"}
                       </p>
                       {search && (
                         <Button
@@ -388,19 +401,19 @@ export function MultiMediaPicker({
                               Selected
                             </Badge>
                           )}
-                          
+
                           <Button
                             variant="secondary"
                             size="icon"
                             className="absolute top-2 right-2 h-6 w-6 rounded-full opacity-0 hover:opacity-100 focus:opacity-100 transition-opacity z-10"
                             onClick={(e) => {
                               e.stopPropagation();
-                              window.open(item.url, '_blank');
+                              window.open(item.url, "_blank");
                             }}
                           >
                             <ExternalLink className="h-3 w-3" />
                           </Button>
-                          
+
                           {item.mimeType.startsWith("image/") ? (
                             <div
                               className="h-full w-full bg-cover bg-center flex items-center justify-center"
@@ -412,22 +425,24 @@ export function MultiMediaPicker({
                           ) : (
                             <div className="h-full w-full flex flex-col items-center justify-center bg-muted p-2">
                               <div className="text-3xl mb-2">
-                                {item.mimeType.startsWith("image/") ? <Image /> : 
-                                  <svg 
-                                    xmlns="http://www.w3.org/2000/svg" 
-                                    width="32" 
-                                    height="32" 
-                                    viewBox="0 0 24 24" 
-                                    fill="none" 
-                                    stroke="currentColor" 
-                                    strokeWidth="2" 
-                                    strokeLinecap="round" 
+                                {item.mimeType.startsWith("image/") ? (
+                                  <Image />
+                                ) : (
+                                  <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    width="32"
+                                    height="32"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2"
+                                    strokeLinecap="round"
                                     strokeLinejoin="round"
                                   >
-                                    <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
-                                    <polyline points="14 2 14 8 20 8"/>
+                                    <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+                                    <polyline points="14 2 14 8 20 8" />
                                   </svg>
-                                }
+                                )}
                               </div>
                               <span className="text-xs font-medium truncate max-w-full">
                                 {item.originalName}
@@ -438,7 +453,7 @@ export function MultiMediaPicker({
                       ))}
                     </div>
                   )}
-                  
+
                   {data && data.total > 0 && (
                     <div className="mt-4">
                       <Pagination
@@ -447,21 +462,23 @@ export function MultiMediaPicker({
                         onPageChange={(newPage) => {
                           setPage(newPage);
                           // Scroll to top of dialog content
-                          const dialogContent = document.querySelector('[role="dialog"]');
+                          const dialogContent =
+                            document.querySelector('[role="dialog"]');
                           if (dialogContent) dialogContent.scrollTop = 0;
                         }}
                         siblingCount={1}
                       />
                     </div>
                   )}
-                  
                 </TabsContent>
-                
+
                 <TabsContent value="upload" className="overflow-auto">
                   <div className="grid gap-4">
                     <div
                       className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-                        dragOver ? "border-primary bg-primary/10" : "border-gray-300"
+                        dragOver
+                          ? "border-primary bg-primary/10"
+                          : "border-gray-300"
                       }`}
                       onDragOver={(e) => {
                         e.preventDefault();
@@ -469,16 +486,27 @@ export function MultiMediaPicker({
                       }}
                       onDragLeave={() => setDragOver(false)}
                       onDrop={handleDrop}
-                      onClick={() => document.getElementById("multi-media-upload")?.click()}
-                      style={{ cursor: 'pointer' }}
+                      onClick={() =>
+                        document.getElementById("multi-media-upload")?.click()
+                      }
+                      style={{ cursor: "pointer" }}
                     >
                       {selectedFiles.length > 0 ? (
                         <div className="space-y-4">
-                          <div className="font-medium">Selected {selectedFiles.length} file{selectedFiles.length > 1 ? 's' : ''}</div>
-                          <div className="text-sm text-muted-foreground">
-                            {formatFileSize(selectedFiles.reduce((total, file) => total + file.size, 0))} total
+                          <div className="font-medium">
+                            Selected {selectedFiles.length} file
+                            {selectedFiles.length > 1 ? "s" : ""}
                           </div>
-                          
+                          <div className="text-sm text-muted-foreground">
+                            {formatFileSize(
+                              selectedFiles.reduce(
+                                (total, file) => total + file.size,
+                                0
+                              )
+                            )}{" "}
+                            total
+                          </div>
+
                           {/* Show previews for the first file if it's an image */}
                           {selectedFiles[0]?.type.startsWith("image/") && (
                             <div className="mt-2">
@@ -489,12 +517,13 @@ export function MultiMediaPicker({
                               />
                               {selectedFiles.length > 1 && (
                                 <p className="text-xs mt-1 text-muted-foreground">
-                                  + {selectedFiles.length - 1} more file{selectedFiles.length > 2 ? 's' : ''}
+                                  + {selectedFiles.length - 1} more file
+                                  {selectedFiles.length > 2 ? "s" : ""}
                                 </p>
                               )}
                             </div>
                           )}
-                          
+
                           {/* Show list of file names if not too many */}
                           {selectedFiles.length <= 5 && (
                             <div className="text-left text-sm max-h-20 overflow-y-auto">
@@ -505,9 +534,9 @@ export function MultiMediaPicker({
                               ))}
                             </div>
                           )}
-                          
-                          <Button 
-                            variant="outline" 
+
+                          <Button
+                            variant="outline"
                             size="sm"
                             onClick={(e) => {
                               e.stopPropagation();
@@ -548,7 +577,9 @@ export function MultiMediaPicker({
                     </div>
 
                     <div className="grid gap-2">
-                      <Label htmlFor="multi-media-tags">Tags (comma separated)</Label>
+                      <Label htmlFor="multi-media-tags">
+                        Tags (comma separated)
+                      </Label>
                       <Input
                         id="multi-media-tags"
                         value={tags}
@@ -556,18 +587,20 @@ export function MultiMediaPicker({
                         placeholder="product, banner, logo"
                       />
                     </div>
-                    
+
                     <Button
                       onClick={handleUpload}
                       disabled={selectedFiles.length === 0}
                     >
-                      {selectedFiles.length > 0 ? `Upload ${selectedFiles.length} files` : 'Upload'}
+                      {selectedFiles.length > 0
+                        ? `Upload ${selectedFiles.length} files`
+                        : "Upload"}
                     </Button>
                   </div>
                 </TabsContent>
               </Tabs>
             </div>
-            
+
             <DialogFooter>
               <Button variant="outline" onClick={() => setOpen(false)}>
                 Cancel
@@ -576,22 +609,30 @@ export function MultiMediaPicker({
                 onClick={handleSelect}
                 disabled={selectedMediaItems.length === 0}
               >
-                Select {selectedMediaItems.length > 0 ? `(${selectedMediaItems.length})` : ''}
+                Select{" "}
+                {selectedMediaItems.length > 0
+                  ? `(${selectedMediaItems.length})`
+                  : ""}
               </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
-        
+
         {/* Display selected images */}
         {selectedUrls.length > 0 && (
           <div>
-            <Label className="block mb-2">Selected Images ({selectedUrls.length})</Label>
+            <Label className="block mb-2">
+              Selected Images ({selectedUrls.length})
+            </Label>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
               {selectedUrls.map((url, index) => (
-                <div key={index} className="relative group border rounded-md overflow-hidden h-24">
-                  <img 
-                    src={url} 
-                    alt={`Selected image ${index + 1}`} 
+                <div
+                  key={index}
+                  className="relative group border rounded-md overflow-hidden h-24"
+                >
+                  <img
+                    src={url}
+                    alt={`Selected image ${index + 1}`}
                     className="h-full w-full object-cover"
                   />
                   <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-all flex items-center justify-center">
@@ -610,22 +651,21 @@ export function MultiMediaPicker({
                   </div>
                 </div>
               ))}
-              
-              {selectedUrls.length < maxImages && (
-                <div 
-                  className="flex items-center justify-center h-24 border border-dashed rounded-md cursor-pointer hover:border-primary transition-colors"
-                  onClick={() => setOpen(true)}
-                >
-                  <Plus className="h-8 w-8 text-muted-foreground" />
-                </div>
-              )}
+
+              <div
+                className="flex items-center justify-center h-24 border border-dashed rounded-md cursor-pointer hover:border-primary transition-colors"
+                onClick={() => setOpen(true)}
+              >
+                <Plus className="h-8 w-8 text-muted-foreground" />
+              </div>
             </div>
           </div>
         )}
-        
+
         {selectedUrls.length === 0 && (
           <div className="text-sm text-muted-foreground">
-            No images selected. Click the button above to select images from the media library.
+            No images selected. Click the button above to select images from the
+            media library.
           </div>
         )}
       </div>

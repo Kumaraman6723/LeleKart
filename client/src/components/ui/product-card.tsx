@@ -36,30 +36,30 @@ export function ProductCard({ product, featured = false }: ProductCardProps) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
-  
+
   // Get user data to check if logged in
   const { data: user } = useQuery<User | null>({
-    queryKey: ['/api/user'],
+    queryKey: ["/api/user"],
     retry: false,
     staleTime: 60000,
   });
 
   // Format price in Indian Rupees
   const formatPrice = (price: number) => {
-    return `₹${price.toLocaleString('en-IN')}`;
+    return `₹${price.toLocaleString("en-IN")}`;
   };
-  
+
   // Strip HTML tags from string
   const stripHtmlTags = (html: string) => {
-    const tmp = document.createElement('DIV');
+    const tmp = document.createElement("DIV");
     tmp.innerHTML = html;
-    return tmp.textContent || tmp.innerText || '';
+    return tmp.textContent || tmp.innerText || "";
   };
-  
+
   const handleAddToCart = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    
+
     // If user is not logged in, redirect to auth
     if (!user) {
       toast({
@@ -70,32 +70,36 @@ export function ProductCard({ product, featured = false }: ProductCardProps) {
       setLocation("/auth", { replace: false });
       return;
     }
-    
+
     // Only buyers can add to cart
     // After null check, the user is definitely a User type with a role property
-    const userRole = user?.role as string; 
-    if (userRole && userRole !== 'buyer') {
+    const userRole = user?.role as string;
+    if (userRole && userRole !== "buyer") {
       toast({
         title: "Action Not Allowed",
-        description: "Only buyers can add items to cart. Please switch to a buyer account.",
+        description:
+          "Only buyers can add items to cart. Please switch to a buyer account.",
         variant: "destructive",
       });
       return;
     }
-    
+
     // Check if product has variants - if so, redirect to product detail page
-    if (product.hasVariants || (product.variants && product.variants.length > 0)) {
+    if (
+      product.hasVariants ||
+      (product.variants && product.variants.length > 0)
+    ) {
       toast({
         title: "Selection Required",
         description: "Please select product options before adding to cart",
         variant: "default",
       });
-      
+
       // Redirect to product detail page to allow variant selection
       setLocation(`/product/${product.id}`, { replace: false });
       return;
     }
-    
+
     try {
       // Use direct API call if context is not available
       if (cartContext) {
@@ -106,10 +110,10 @@ export function ProductCard({ product, featured = false }: ProductCardProps) {
           productId: product.id,
           quantity: 1,
         });
-        
+
         // Refresh cart data
         queryClient.invalidateQueries({ queryKey: ["/api/cart"] });
-        
+
         toast({
           title: "Added to cart",
           description: `${product.name} has been added to your cart`,
@@ -130,7 +134,7 @@ export function ProductCard({ product, featured = false }: ProductCardProps) {
     <div className="relative">
       {/* Add Wishlist button on top right of card */}
       <WishlistButton productId={product.id} variant="card" />
-      
+
       {/* Use normalized path that starts with a slash to prevent double slashes */}
       <Link href={`/product/${product.id}`} className="block">
         <Card className="product-card h-full flex flex-col items-center p-3 transition-transform duration-200 hover:cursor-pointer hover:shadow-md hover:-translate-y-1">
@@ -138,26 +142,29 @@ export function ProductCard({ product, featured = false }: ProductCardProps) {
             <div className="w-full flex-shrink-0 h-40 flex items-center justify-center mb-3 bg-slate-50 rounded-md">
               <ProductImage product={product} className="rounded-sm" />
             </div>
-            
+
             <div className="flex flex-col flex-grow w-full">
-              <h3 className="font-medium text-center text-sm line-clamp-2 h-10">{product.name}</h3>
+              <h3 className="font-medium text-center text-sm line-clamp-2 h-10">
+                {product.name}
+              </h3>
               <div className="text-green-600 font-medium mt-1 text-center">
-                {product.gstDetails 
+                {product.gstDetails
                   ? formatPrice(product.gstDetails.priceWithGst)
                   : formatPrice(product.price)}
-                {product.gstDetails && product.gstDetails.gstRate > 0 && (
-                  <div className="text-xs text-gray-500">
-                    Incl. {product.gstDetails.gstRate}% GST
-                  </div>
-                )}
               </div>
-              <div className="text-xs text-gray-500 mt-1 text-center line-clamp-1">{stripHtmlTags(product.description).slice(0, 30)}...</div>
+              <div className="text-xs text-gray-500 mt-1 text-center line-clamp-1">
+                {stripHtmlTags(product.description).slice(0, 30)}...
+              </div>
             </div>
-            
-            <Button 
+
+            <Button
               variant={featured ? "outline" : "ghost"}
-              size="sm" 
-              className={`mt-2 w-full ${featured ? 'border-primary text-primary hover:bg-primary hover:text-white' : 'text-primary hover:bg-primary/10'}`}
+              size="sm"
+              className={`mt-2 w-full ${
+                featured
+                  ? "border-primary text-primary hover:bg-primary hover:text-white"
+                  : "text-primary hover:bg-primary/10"
+              }`}
               onClick={handleAddToCart}
             >
               <ShoppingCart className="h-4 w-4 mr-2" />

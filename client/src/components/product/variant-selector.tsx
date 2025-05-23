@@ -427,8 +427,7 @@ export function VariantSelector({
 
     // Determine if the selection is valid based on what variants are available
     const isValidSelection =
-      (!hasColorVariants || (hasColorVariants && selectedColor !== null)) &&
-      (!hasSizeVariants || (hasSizeVariants && selectedSize !== null));
+      !hasColorVariants || (hasColorVariants && selectedColor !== null);
 
     // Add debug logging to help identify selection issues
     console.log("Variant selection state:", {
@@ -447,33 +446,27 @@ export function VariantSelector({
     // If size is selected, hide size error
     if (selectedSize) {
       setShowSizeError(false);
-    } else if (hasSizeVariants) {
-      setShowSizeError(true);
     }
 
     // Update the current variant
-    if (
-      !selectedColor ||
-      (hasSizeVariants && !selectedSize) ||
-      !variants ||
-      variants.length === 0
-    ) {
+    if (!selectedColor || !variants || variants.length === 0) {
       setCurrentVariant(null);
       onVariantChange(null);
       return;
     }
 
-    // Find a variant that contains both the selected color and size
+    // Find a variant that contains the selected color, size is optional
     const matchedVariant = variants.find((v) => {
       // Handle special case for "Default" color (when only size variants exist)
       const colorMatch =
         selectedColor === "Default" ||
         colorMatches(v.color, selectedColor || "");
 
-      // Only check size match if a size is selected
+      // Only check size match if a size is selected and size variants exist
       const sizeMatch =
         !hasSizeVariants ||
-        (selectedSize ? sizeMatches(v.size, selectedSize) : false);
+        !selectedSize ||
+        (selectedSize ? sizeMatches(v.size, selectedSize) : true);
 
       return (
         colorMatch && sizeMatch && typeof v.stock === "number" && v.stock > 0
@@ -522,18 +515,6 @@ export function VariantSelector({
     onVariantImagesChange,
     onValidSelectionChange,
   ]);
-
-  // Automatically select the first available size when a color is selected
-  useEffect(() => {
-    if (selectedColor && availableSizes.length > 0 && !selectedSize) {
-      // Try to find 'M' (medium) size first
-      const mediumSize = availableSizes.find(
-        (size) => size.toUpperCase() === "M"
-      );
-      // If 'M' is available, select it, otherwise fall back to first available size
-      setSelectedSize(mediumSize || availableSizes[0]);
-    }
-  }, [selectedColor, availableSizes, selectedSize]);
 
   // If no valid variants found, show debug message
   if (!variants || variants.length === 0 || availableColors.length === 0) {
@@ -842,18 +823,12 @@ export function VariantSelector({
         </div>
       )}
 
-      {/* Size Selection - only show when a color is selected or in "Default" color mode */}
+      {/* Size Selection - now optional */}
       {(selectedColor || availableColors.includes("Default")) &&
         availableSizes.length > 0 && (
           <div>
             <div className="flex justify-between items-center mb-2">
               <Label className="font-medium">Size</Label>
-              {showSizeError && (
-                <div className="text-red-500 text-sm flex items-center">
-                  <AlertTriangle className="h-3.5 w-3.5 mr-1" />
-                  <span>Please select a size</span>
-                </div>
-              )}
             </div>
             <RadioGroup
               value={selectedSize || ""}
@@ -988,10 +963,6 @@ export function VariantSelector({
                   <span className="font-medium">Out of stock</span>
                 </div>
               )}
-            </div>
-          ) : selectedColor && !selectedSize && availableSizes.length > 0 ? (
-            <div className="text-amber-600 text-sm">
-              Please select a size to check availability
             </div>
           ) : !selectedColor && availableColors.length > 1 ? (
             <div className="text-amber-600 text-sm">

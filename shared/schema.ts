@@ -1,4 +1,15 @@
-import { pgTable, text, serial, integer, boolean, timestamp, foreignKey, doublePrecision, jsonb, decimal } from "drizzle-orm/pg-core";
+import {
+  pgTable,
+  text,
+  serial,
+  integer,
+  boolean,
+  timestamp,
+  foreignKey,
+  doublePrecision,
+  jsonb,
+  decimal,
+} from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -11,25 +22,27 @@ export const shiprocketSettings = pgTable("shiprocket_settings", {
   token: text("token"),
   defaultCourier: text("default_courier"),
   autoShipEnabled: boolean("auto_ship_enabled").default(false),
-  updatedAt: timestamp("updated_at").defaultNow()
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export const insertShiprocketSettingsSchema = createInsertSchema(shiprocketSettings).pick({
+export const insertShiprocketSettingsSchema = createInsertSchema(
+  shiprocketSettings
+).pick({
   email: true,
   password: true,
   token: true,
   defaultCourier: true,
-  autoShipEnabled: true
+  autoShipEnabled: true,
 });
 
 // Define notification types
 export enum NotificationType {
-  ORDER_STATUS = 'ORDER_STATUS',
-  PRODUCT_APPROVAL = 'PRODUCT_APPROVAL',
-  PRICE_DROP = 'PRICE_DROP',
-  NEW_MESSAGE = 'NEW_MESSAGE',
-  SYSTEM = 'SYSTEM',
-  WALLET = 'WALLET'
+  ORDER_STATUS = "ORDER_STATUS",
+  PRODUCT_APPROVAL = "PRODUCT_APPROVAL",
+  PRICE_DROP = "PRICE_DROP",
+  NEW_MESSAGE = "NEW_MESSAGE",
+  SYSTEM = "SYSTEM",
+  WALLET = "WALLET",
 }
 
 // User schema with role
@@ -94,6 +107,8 @@ export const products = pgTable("products", {
   length: decimal("length", { precision: 10, scale: 2 }), // Product length in cm
   width: decimal("width", { precision: 10, scale: 2 }), // Product width in cm
   height: decimal("height", { precision: 10, scale: 2 }), // Product height in cm
+  warranty: integer("warranty"), // Warranty period in months
+  returnPolicy: text("return_policy"), // Return policy details
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -123,14 +138,18 @@ export const insertProductSchema = createInsertSchema(products).pick({
   length: true,
   width: true,
   height: true,
+  warranty: true,
+  returnPolicy: true,
 });
 
 // Product Variants Schema
 export const productVariants = pgTable("product_variants", {
   id: serial("id").primaryKey(),
-  productId: integer("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
+  productId: integer("product_id")
+    .notNull()
+    .references(() => products.id, { onDelete: "cascade" }),
   sku: text("sku"), // Variant-specific SKU
-  color: text("color"), // Variant color 
+  color: text("color"), // Variant color
   size: text("size"), // Variant size
   price: integer("price").notNull(), // Variant-specific price
   mrp: integer("mrp"), // Variant-specific MRP
@@ -139,7 +158,9 @@ export const productVariants = pgTable("product_variants", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-export const insertProductVariantSchema = createInsertSchema(productVariants).pick({
+export const insertProductVariantSchema = createInsertSchema(
+  productVariants
+).pick({
   productId: true,
   sku: true,
   color: true,
@@ -153,8 +174,12 @@ export const insertProductVariantSchema = createInsertSchema(productVariants).pi
 // Cart schema
 export const carts = pgTable("carts", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull().references(() => users.id),
-  productId: integer("product_id").notNull().references(() => products.id),
+  userId: integer("user_id")
+    .notNull()
+    .references(() => users.id),
+  productId: integer("product_id")
+    .notNull()
+    .references(() => products.id),
   variantId: integer("variant_id").references(() => productVariants.id),
   quantity: integer("quantity").notNull().default(1),
 });
@@ -169,7 +194,9 @@ export const insertCartSchema = createInsertSchema(carts).pick({
 // Order schema
 export const orders = pgTable("orders", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull().references(() => users.id),
+  userId: integer("user_id")
+    .notNull()
+    .references(() => users.id),
   status: text("status").notNull().default("pending"),
   total: integer("total").notNull(),
   date: timestamp("date").notNull().defaultNow(),
@@ -178,11 +205,11 @@ export const orders = pgTable("orders", {
   paymentId: text("payment_id"), // For Razorpay paymentId
   orderId: text("order_id"), // For Razorpay orderId
   addressId: integer("address_id").references(() => userAddresses.id), // Optional reference to saved address
-  
+
   // Wallet integration fields
   walletDiscount: integer("wallet_discount").default(0), // Amount discounted using wallet coins
   walletCoinsUsed: integer("wallet_coins_used").default(0), // Number of coins used from wallet
-  
+
   // Shiprocket integration fields
   shippingStatus: text("shipping_status"), // Status of the order in Shiprocket
   shiprocketOrderId: text("shiprocket_order_id"), // Order ID in Shiprocket
@@ -219,8 +246,12 @@ export const insertOrderSchema = createInsertSchema(orders).pick({
 // Seller Orders schema - for tracking per-seller sub-orders
 export const sellerOrders = pgTable("seller_orders", {
   id: serial("id").primaryKey(),
-  orderId: integer("order_id").notNull().references(() => orders.id),
-  sellerId: integer("seller_id").notNull().references(() => users.id),
+  orderId: integer("order_id")
+    .notNull()
+    .references(() => orders.id),
+  sellerId: integer("seller_id")
+    .notNull()
+    .references(() => users.id),
   subtotal: integer("subtotal").notNull(),
   deliveryCharge: integer("delivery_charge").notNull(),
   status: text("status").notNull().default("pending"),
@@ -248,8 +279,12 @@ export const insertSellerOrderSchema = createInsertSchema(sellerOrders).pick({
 // OrderItem schema
 export const orderItems = pgTable("order_items", {
   id: serial("id").primaryKey(),
-  orderId: integer("order_id").notNull().references(() => orders.id),
-  productId: integer("product_id").notNull().references(() => products.id),
+  orderId: integer("order_id")
+    .notNull()
+    .references(() => orders.id),
+  productId: integer("product_id")
+    .notNull()
+    .references(() => products.id),
   quantity: integer("quantity").notNull(),
   price: integer("price").notNull(),
   sellerOrderId: integer("seller_order_id").references(() => sellerOrders.id),
@@ -294,12 +329,15 @@ export const productsRelations = relations(products, ({ one, many }) => ({
   variants: many(productVariants),
 }));
 
-export const productVariantsRelations = relations(productVariants, ({ one }) => ({
-  product: one(products, {
-    fields: [productVariants.productId],
-    references: [products.id],
-  }),
-}));
+export const productVariantsRelations = relations(
+  productVariants,
+  ({ one }) => ({
+    product: one(products, {
+      fields: [productVariants.productId],
+      references: [products.id],
+    }),
+  })
+);
 
 export const cartsRelations = relations(carts, ({ one }) => ({
   user: one(users, {
@@ -330,17 +368,20 @@ export const ordersRelations = relations(orders, ({ one, many }) => ({
   reviews: many(reviews),
 }));
 
-export const sellerOrdersRelations = relations(sellerOrders, ({ one, many }) => ({
-  order: one(orders, {
-    fields: [sellerOrders.orderId],
-    references: [orders.id],
-  }),
-  seller: one(users, {
-    fields: [sellerOrders.sellerId],
-    references: [users.id],
-  }),
-  items: many(orderItems),
-}));
+export const sellerOrdersRelations = relations(
+  sellerOrders,
+  ({ one, many }) => ({
+    order: one(orders, {
+      fields: [sellerOrders.orderId],
+      references: [orders.id],
+    }),
+    seller: one(users, {
+      fields: [sellerOrders.sellerId],
+      references: [users.id],
+    }),
+    items: many(orderItems),
+  })
+);
 
 export const orderItemsRelations = relations(orderItems, ({ one }) => ({
   order: one(orders, {
@@ -405,7 +446,9 @@ export const subcategories = pgTable("subcategories", {
   slug: text("slug").notNull(), // New: URL-friendly identifier
   image: text("image"),
   description: text("description"),
-  categoryId: integer("category_id").notNull().references(() => categories.id, { onDelete: "cascade" }),
+  categoryId: integer("category_id")
+    .notNull()
+    .references(() => categories.id, { onDelete: "cascade" }),
   displayOrder: integer("display_order").notNull().default(0),
   active: boolean("active").notNull().default(true),
   featured: boolean("featured").notNull().default(false), // New: Featured flag for promotional subcategories
@@ -415,17 +458,20 @@ export const subcategories = pgTable("subcategories", {
 
 // Define category to subcategory relationship
 export const categoriesRelations = relations(categories, ({ many }) => ({
-  subcategories: many(subcategories)
+  subcategories: many(subcategories),
 }));
 
 // Define subcategory to category relationship
-export const subcategoriesRelations = relations(subcategories, ({ one, many }) => ({
-  category: one(categories, {
-    fields: [subcategories.categoryId],
-    references: [categories.id]
-  }),
-  products: many(products)
-}));
+export const subcategoriesRelations = relations(
+  subcategories,
+  ({ one, many }) => ({
+    category: one(categories, {
+      fields: [subcategories.categoryId],
+      references: [categories.id],
+    }),
+    products: many(products),
+  })
+);
 
 export const insertSubcategorySchema = createInsertSchema(subcategories).pick({
   name: true,
@@ -441,8 +487,12 @@ export const insertSubcategorySchema = createInsertSchema(subcategories).pick({
 // Reviews table
 export const reviews = pgTable("reviews", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull().references(() => users.id),
-  productId: integer("product_id").notNull().references(() => products.id),
+  userId: integer("user_id")
+    .notNull()
+    .references(() => users.id),
+  productId: integer("product_id")
+    .notNull()
+    .references(() => products.id),
   orderId: integer("order_id").references(() => orders.id), // Optional - to verify purchase
   rating: integer("rating").notNull(), // 1-5 star rating
   review: text("review"), // Text review (optional)
@@ -468,7 +518,9 @@ export const insertReviewSchema = createInsertSchema(reviews).pick({
 // Review Images table (for photo reviews)
 export const reviewImages = pgTable("review_images", {
   id: serial("id").primaryKey(),
-  reviewId: integer("review_id").notNull().references(() => reviews.id),
+  reviewId: integer("review_id")
+    .notNull()
+    .references(() => reviews.id),
   imageUrl: text("image_url").notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
@@ -481,15 +533,21 @@ export const insertReviewImageSchema = createInsertSchema(reviewImages).pick({
 // Review Helpful Votes (to track which users found which reviews helpful)
 export const reviewHelpful = pgTable("review_helpful", {
   id: serial("id").primaryKey(),
-  reviewId: integer("review_id").notNull().references(() => reviews.id),
-  userId: integer("user_id").notNull().references(() => users.id),
+  reviewId: integer("review_id")
+    .notNull()
+    .references(() => reviews.id),
+  userId: integer("user_id")
+    .notNull()
+    .references(() => users.id),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-export const insertReviewHelpfulSchema = createInsertSchema(reviewHelpful).pick({
-  reviewId: true,
-  userId: true,
-});
+export const insertReviewHelpfulSchema = createInsertSchema(reviewHelpful).pick(
+  {
+    reviewId: true,
+    userId: true,
+  }
+);
 
 // Relations for reviews
 export const reviewsRelations = relations(reviews, ({ one, many }) => ({
@@ -560,7 +618,9 @@ export const sellerAgreements = pgTable("seller_agreements", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-export const insertSellerAgreementSchema = createInsertSchema(sellerAgreements).omit({
+export const insertSellerAgreementSchema = createInsertSchema(
+  sellerAgreements
+).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
@@ -568,33 +628,45 @@ export const insertSellerAgreementSchema = createInsertSchema(sellerAgreements).
 
 export const acceptedAgreements = pgTable("accepted_agreements", {
   id: serial("id").primaryKey(),
-  sellerId: integer("seller_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  agreementId: integer("agreement_id").notNull().references(() => sellerAgreements.id, { onDelete: "cascade" }),
+  sellerId: integer("seller_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  agreementId: integer("agreement_id")
+    .notNull()
+    .references(() => sellerAgreements.id, { onDelete: "cascade" }),
   acceptedAt: timestamp("accepted_at").notNull().defaultNow(),
   ipAddress: text("ip_address"),
   userAgent: text("user_agent"),
 });
 
-export const insertAcceptedAgreementSchema = createInsertSchema(acceptedAgreements).omit({
+export const insertAcceptedAgreementSchema = createInsertSchema(
+  acceptedAgreements
+).omit({
   id: true,
   acceptedAt: true,
 });
 
 // Relations
-export const sellerAgreementsRelations = relations(sellerAgreements, ({ many }) => ({
-  acceptedBy: many(acceptedAgreements),
-}));
+export const sellerAgreementsRelations = relations(
+  sellerAgreements,
+  ({ many }) => ({
+    acceptedBy: many(acceptedAgreements),
+  })
+);
 
-export const acceptedAgreementsRelations = relations(acceptedAgreements, ({ one }) => ({
-  seller: one(users, {
-    fields: [acceptedAgreements.sellerId],
-    references: [users.id],
-  }),
-  agreement: one(sellerAgreements, {
-    fields: [acceptedAgreements.agreementId],
-    references: [sellerAgreements.id],
-  }),
-}));
+export const acceptedAgreementsRelations = relations(
+  acceptedAgreements,
+  ({ one }) => ({
+    seller: one(users, {
+      fields: [acceptedAgreements.sellerId],
+      references: [users.id],
+    }),
+    agreement: one(sellerAgreements, {
+      fields: [acceptedAgreements.agreementId],
+      references: [sellerAgreements.id],
+    }),
+  })
+);
 
 export type UserOtp = typeof userOtps.$inferSelect;
 export type InsertUserOtp = z.infer<typeof insertUserOtpSchema>;
@@ -627,28 +699,36 @@ export const userActivities = pgTable("user_activities", {
   additionalData: text("additional_data"), // JSON string with additional context
 });
 
-export const insertUserActivitySchema = createInsertSchema(userActivities).pick({
-  userId: true,
-  sessionId: true,
-  activityType: true,
-  productId: true,
-  categoryId: true,
-  searchQuery: true,
-  additionalData: true,
-});
+export const insertUserActivitySchema = createInsertSchema(userActivities).pick(
+  {
+    userId: true,
+    sessionId: true,
+    activityType: true,
+    productId: true,
+    categoryId: true,
+    searchQuery: true,
+    additionalData: true,
+  }
+);
 
 // Product Relationships for Complementary Products
 export const productRelationships = pgTable("product_relationships", {
   id: serial("id").primaryKey(),
-  sourceProductId: integer("source_product_id").notNull().references(() => products.id),
-  relatedProductId: integer("related_product_id").notNull().references(() => products.id),
+  sourceProductId: integer("source_product_id")
+    .notNull()
+    .references(() => products.id),
+  relatedProductId: integer("related_product_id")
+    .notNull()
+    .references(() => products.id),
   relationshipType: text("relationship_type").notNull(), // complementary, similar, bundle, etc.
   strength: doublePrecision("strength").notNull().default(1.0), // Relation strength (higher = stronger relationship)
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-export const insertProductRelationshipSchema = createInsertSchema(productRelationships).pick({
+export const insertProductRelationshipSchema = createInsertSchema(
+  productRelationships
+).pick({
   sourceProductId: true,
   relatedProductId: true,
   relationshipType: true,
@@ -667,7 +747,9 @@ export const aiAssistantConversations = pgTable("ai_assistant_conversations", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-export const insertAiAssistantConversationSchema = createInsertSchema(aiAssistantConversations).pick({
+export const insertAiAssistantConversationSchema = createInsertSchema(
+  aiAssistantConversations
+).pick({
   userId: true,
   sessionId: true,
   productId: true,
@@ -678,7 +760,9 @@ export const insertAiAssistantConversationSchema = createInsertSchema(aiAssistan
 // Size Preferences for Size Recommendations
 export const userSizePreferences = pgTable("user_size_preferences", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull().references(() => users.id),
+  userId: integer("user_id")
+    .notNull()
+    .references(() => users.id),
   category: text("category").notNull(), // clothing, shoes, etc.
   size: text("size").notNull(), // S, M, L, 42, etc.
   fit: text("fit"), // slim, regular, loose, etc.
@@ -686,7 +770,9 @@ export const userSizePreferences = pgTable("user_size_preferences", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-export const insertUserSizePreferenceSchema = createInsertSchema(userSizePreferences).pick({
+export const insertUserSizePreferenceSchema = createInsertSchema(
+  userSizePreferences
+).pick({
   userId: true,
   category: true,
   size: true,
@@ -709,51 +795,67 @@ export const userActivitiesRelations = relations(userActivities, ({ one }) => ({
   }),
 }));
 
-export const productRelationshipsRelations = relations(productRelationships, ({ one }) => ({
-  sourceProduct: one(products, {
-    fields: [productRelationships.sourceProductId],
-    references: [products.id],
-  }),
-  relatedProduct: one(products, {
-    fields: [productRelationships.relatedProductId],
-    references: [products.id],
-  }),
-}));
+export const productRelationshipsRelations = relations(
+  productRelationships,
+  ({ one }) => ({
+    sourceProduct: one(products, {
+      fields: [productRelationships.sourceProductId],
+      references: [products.id],
+    }),
+    relatedProduct: one(products, {
+      fields: [productRelationships.relatedProductId],
+      references: [products.id],
+    }),
+  })
+);
 
-export const aiAssistantConversationsRelations = relations(aiAssistantConversations, ({ one }) => ({
-  user: one(users, {
-    fields: [aiAssistantConversations.userId],
-    references: [users.id],
-  }),
-  product: one(products, {
-    fields: [aiAssistantConversations.productId],
-    references: [products.id],
-  }),
-  category: one(categories, {
-    fields: [aiAssistantConversations.categoryId],
-    references: [categories.id],
-  }),
-}));
+export const aiAssistantConversationsRelations = relations(
+  aiAssistantConversations,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [aiAssistantConversations.userId],
+      references: [users.id],
+    }),
+    product: one(products, {
+      fields: [aiAssistantConversations.productId],
+      references: [products.id],
+    }),
+    category: one(categories, {
+      fields: [aiAssistantConversations.categoryId],
+      references: [categories.id],
+    }),
+  })
+);
 
-export const userSizePreferencesRelations = relations(userSizePreferences, ({ one }) => ({
-  user: one(users, {
-    fields: [userSizePreferences.userId],
-    references: [users.id],
-  }),
-}));
+export const userSizePreferencesRelations = relations(
+  userSizePreferences,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [userSizePreferences.userId],
+      references: [users.id],
+    }),
+  })
+);
 
 // Add relationships to existing tables
 export type UserActivity = typeof userActivities.$inferSelect;
 export type InsertUserActivity = z.infer<typeof insertUserActivitySchema>;
 
 export type ProductRelationship = typeof productRelationships.$inferSelect;
-export type InsertProductRelationship = z.infer<typeof insertProductRelationshipSchema>;
+export type InsertProductRelationship = z.infer<
+  typeof insertProductRelationshipSchema
+>;
 
-export type AiAssistantConversation = typeof aiAssistantConversations.$inferSelect;
-export type InsertAiAssistantConversation = z.infer<typeof insertAiAssistantConversationSchema>;
+export type AiAssistantConversation =
+  typeof aiAssistantConversations.$inferSelect;
+export type InsertAiAssistantConversation = z.infer<
+  typeof insertAiAssistantConversationSchema
+>;
 
 export type UserSizePreference = typeof userSizePreferences.$inferSelect;
-export type InsertUserSizePreference = z.infer<typeof insertUserSizePreferenceSchema>;
+export type InsertUserSizePreference = z.infer<
+  typeof insertUserSizePreferenceSchema
+>;
 
 export type UserAddress = typeof userAddresses.$inferSelect;
 export type InsertUserAddress = z.infer<typeof insertUserAddressSchema>;
@@ -763,7 +865,9 @@ export type InsertUserAddress = z.infer<typeof insertUserAddressSchema>;
 // User Addresses table
 export const userAddresses = pgTable("user_addresses", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull().references(() => users.id),
+  userId: integer("user_id")
+    .notNull()
+    .references(() => users.id),
   addressName: text("address_name").notNull(), // Home, Work, etc.
   fullName: text("full_name").notNull(),
   address: text("address").notNull(),
@@ -807,8 +911,12 @@ export const userAddressesRelations = relations(userAddresses, ({ one }) => ({
 // Wishlist table
 export const wishlists = pgTable("wishlists", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull().references(() => users.id),
-  productId: integer("product_id").notNull().references(() => products.id),
+  userId: integer("user_id")
+    .notNull()
+    .references(() => users.id),
+  productId: integer("product_id")
+    .notNull()
+    .references(() => products.id),
   dateAdded: timestamp("date_added").notNull().defaultNow(),
 });
 
@@ -836,8 +944,12 @@ export type InsertWishlist = z.infer<typeof insertWishlistSchema>;
 // Sales Data table - for historical sales data used in demand forecasting
 export const salesHistory = pgTable("sales_history", {
   id: serial("id").primaryKey(),
-  productId: integer("product_id").notNull().references(() => products.id),
-  sellerId: integer("seller_id").notNull().references(() => users.id),
+  productId: integer("product_id")
+    .notNull()
+    .references(() => products.id),
+  sellerId: integer("seller_id")
+    .notNull()
+    .references(() => users.id),
   date: timestamp("date").notNull(),
   quantity: integer("quantity").notNull(),
   revenue: integer("revenue").notNull(), // in cents
@@ -865,8 +977,12 @@ export const insertSalesHistorySchema = createInsertSchema(salesHistory).pick({
 // Demand Forecasts table - stores ML-generated demand predictions
 export const demandForecasts = pgTable("demand_forecasts", {
   id: serial("id").primaryKey(),
-  productId: integer("product_id").notNull().references(() => products.id),
-  sellerId: integer("seller_id").notNull().references(() => users.id),
+  productId: integer("product_id")
+    .notNull()
+    .references(() => products.id),
+  sellerId: integer("seller_id")
+    .notNull()
+    .references(() => users.id),
   forecastDate: timestamp("forecast_date").notNull(),
   predictedDemand: integer("predicted_demand").notNull(),
   confidenceScore: doublePrecision("confidence_score").notNull(), // 0.0 to 1.0
@@ -877,7 +993,9 @@ export const demandForecasts = pgTable("demand_forecasts", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-export const insertDemandForecastSchema = createInsertSchema(demandForecasts).pick({
+export const insertDemandForecastSchema = createInsertSchema(
+  demandForecasts
+).pick({
   productId: true,
   sellerId: true,
   forecastDate: true,
@@ -891,12 +1009,16 @@ export const insertDemandForecastSchema = createInsertSchema(demandForecasts).pi
 // Price Optimization table - stores ML-generated pricing recommendations
 export const priceOptimizations = pgTable("price_optimizations", {
   id: serial("id").primaryKey(),
-  productId: integer("product_id").notNull().references(() => products.id),
-  sellerId: integer("seller_id").notNull().references(() => users.id),
+  productId: integer("product_id")
+    .notNull()
+    .references(() => products.id),
+  sellerId: integer("seller_id")
+    .notNull()
+    .references(() => users.id),
   currentPrice: integer("current_price").notNull(), // in cents
   suggestedPrice: integer("suggested_price").notNull(), // in cents
   projectedRevenue: integer("projected_revenue"), // in cents
-  projectedSales: integer("projected_sales"), 
+  projectedSales: integer("projected_sales"),
   confidenceScore: doublePrecision("confidence_score").notNull(), // 0.0 to 1.0
   reasoningFactors: jsonb("reasoning_factors"), // JSON with factors that influenced the recommendation
   status: text("status").notNull().default("pending"), // "pending", "applied", "rejected"
@@ -905,7 +1027,9 @@ export const priceOptimizations = pgTable("price_optimizations", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-export const insertPriceOptimizationSchema = createInsertSchema(priceOptimizations).pick({
+export const insertPriceOptimizationSchema = createInsertSchema(
+  priceOptimizations
+).pick({
   productId: true,
   sellerId: true,
   currentPrice: true,
@@ -921,11 +1045,15 @@ export const insertPriceOptimizationSchema = createInsertSchema(priceOptimizatio
 // Inventory Optimization table - stores ML-generated inventory recommendations
 export const inventoryOptimizations = pgTable("inventory_optimizations", {
   id: serial("id").primaryKey(),
-  productId: integer("product_id").notNull().references(() => products.id),
-  sellerId: integer("seller_id").notNull().references(() => users.id),
+  productId: integer("product_id")
+    .notNull()
+    .references(() => products.id),
+  sellerId: integer("seller_id")
+    .notNull()
+    .references(() => users.id),
   currentStock: integer("current_stock").notNull(),
   recommendedStock: integer("recommended_stock").notNull(),
-  reorderPoint: integer("reorder_point"), 
+  reorderPoint: integer("reorder_point"),
   maxStock: integer("max_stock"),
   safetyStock: integer("safety_stock"),
   leadTime: integer("lead_time"), // in days
@@ -937,7 +1065,9 @@ export const inventoryOptimizations = pgTable("inventory_optimizations", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-export const insertInventoryOptimizationSchema = createInsertSchema(inventoryOptimizations).pick({
+export const insertInventoryOptimizationSchema = createInsertSchema(
+  inventoryOptimizations
+).pick({
   productId: true,
   sellerId: true,
   currentStock: true,
@@ -955,8 +1085,12 @@ export const insertInventoryOptimizationSchema = createInsertSchema(inventoryOpt
 // AI Content Generation - stores ML-generated product content
 export const aiGeneratedContent = pgTable("ai_generated_content", {
   id: serial("id").primaryKey(),
-  productId: integer("product_id").notNull().references(() => products.id),
-  sellerId: integer("seller_id").notNull().references(() => users.id),
+  productId: integer("product_id")
+    .notNull()
+    .references(() => products.id),
+  sellerId: integer("seller_id")
+    .notNull()
+    .references(() => users.id),
   contentType: text("content_type").notNull(), // "description", "features", "specifications", "image"
   originalData: text("original_data"), // The input data provided for generation
   generatedContent: text("generated_content").notNull(), // The AI-generated content
@@ -968,7 +1102,9 @@ export const aiGeneratedContent = pgTable("ai_generated_content", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-export const insertAiGeneratedContentSchema = createInsertSchema(aiGeneratedContent).pick({
+export const insertAiGeneratedContentSchema = createInsertSchema(
+  aiGeneratedContent
+).pick({
   productId: true,
   sellerId: true,
   contentType: true,
@@ -992,66 +1128,80 @@ export const salesHistoryRelations = relations(salesHistory, ({ one }) => ({
   }),
 }));
 
-export const demandForecastsRelations = relations(demandForecasts, ({ one }) => ({
-  product: one(products, {
-    fields: [demandForecasts.productId],
-    references: [products.id],
-  }),
-  seller: one(users, {
-    fields: [demandForecasts.sellerId],
-    references: [users.id],
-  }),
-}));
+export const demandForecastsRelations = relations(
+  demandForecasts,
+  ({ one }) => ({
+    product: one(products, {
+      fields: [demandForecasts.productId],
+      references: [products.id],
+    }),
+    seller: one(users, {
+      fields: [demandForecasts.sellerId],
+      references: [users.id],
+    }),
+  })
+);
 
-export const priceOptimizationsRelations = relations(priceOptimizations, ({ one }) => ({
-  product: one(products, {
-    fields: [priceOptimizations.productId],
-    references: [products.id],
-  }),
-  seller: one(users, {
-    fields: [priceOptimizations.sellerId],
-    references: [users.id],
-  }),
-}));
+export const priceOptimizationsRelations = relations(
+  priceOptimizations,
+  ({ one }) => ({
+    product: one(products, {
+      fields: [priceOptimizations.productId],
+      references: [products.id],
+    }),
+    seller: one(users, {
+      fields: [priceOptimizations.sellerId],
+      references: [users.id],
+    }),
+  })
+);
 
-export const inventoryOptimizationsRelations = relations(inventoryOptimizations, ({ one }) => ({
-  product: one(products, {
-    fields: [inventoryOptimizations.productId],
-    references: [products.id],
-  }),
-  seller: one(users, {
-    fields: [inventoryOptimizations.sellerId],
-    references: [users.id],
-  }),
-}));
+export const inventoryOptimizationsRelations = relations(
+  inventoryOptimizations,
+  ({ one }) => ({
+    product: one(products, {
+      fields: [inventoryOptimizations.productId],
+      references: [products.id],
+    }),
+    seller: one(users, {
+      fields: [inventoryOptimizations.sellerId],
+      references: [users.id],
+    }),
+  })
+);
 
-export const aiGeneratedContentRelations = relations(aiGeneratedContent, ({ one }) => ({
-  product: one(products, {
-    fields: [aiGeneratedContent.productId],
-    references: [products.id],
-  }),
-  seller: one(users, {
-    fields: [aiGeneratedContent.sellerId],
-    references: [users.id],
-  }),
-}));
+export const aiGeneratedContentRelations = relations(
+  aiGeneratedContent,
+  ({ one }) => ({
+    product: one(products, {
+      fields: [aiGeneratedContent.productId],
+      references: [products.id],
+    }),
+    seller: one(users, {
+      fields: [aiGeneratedContent.sellerId],
+      references: [users.id],
+    }),
+  })
+);
 
 // Footer Content schema
 export const footerContent = pgTable("footer_content", {
   id: serial("id").primaryKey(),
   section: text("section").notNull(), // 'about', 'help', 'policy', 'social', 'mail_us'
-  title: text("title").notNull(),     // e.g. 'About Us', 'Contact Us', etc.
+  title: text("title").notNull(), // e.g. 'About Us', 'Contact Us', etc.
   content: text("content").notNull(), // HTML or Markdown content
   order: integer("order").notNull().default(0),
-  url: text("url"),                   // Optional URL for links
+  url: text("url"), // Optional URL for links
   lastUpdated: timestamp("last_updated").defaultNow(),
   isActive: boolean("is_active").notNull().default(true),
 });
 
-export const insertFooterContentSchema = createInsertSchema(footerContent).omit({
-  id: true,
-  lastUpdated: true,
-});
+export const insertFooterContentSchema = createInsertSchema(footerContent).omit(
+  {
+    id: true,
+    lastUpdated: true,
+  }
+);
 
 // Product Display Settings schema
 export const productDisplaySettings = pgTable("product_display_settings", {
@@ -1063,7 +1213,9 @@ export const productDisplaySettings = pgTable("product_display_settings", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export const insertProductDisplaySettingsSchema = createInsertSchema(productDisplaySettings).omit({
+export const insertProductDisplaySettingsSchema = createInsertSchema(
+  productDisplaySettings
+).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
@@ -1080,18 +1232,26 @@ export type DemandForecast = typeof demandForecasts.$inferSelect;
 export type InsertDemandForecast = z.infer<typeof insertDemandForecastSchema>;
 
 export type PriceOptimization = typeof priceOptimizations.$inferSelect;
-export type InsertPriceOptimization = z.infer<typeof insertPriceOptimizationSchema>;
+export type InsertPriceOptimization = z.infer<
+  typeof insertPriceOptimizationSchema
+>;
 
 export type InventoryOptimization = typeof inventoryOptimizations.$inferSelect;
-export type InsertInventoryOptimization = z.infer<typeof insertInventoryOptimizationSchema>;
+export type InsertInventoryOptimization = z.infer<
+  typeof insertInventoryOptimizationSchema
+>;
 
 export type AIGeneratedContent = typeof aiGeneratedContent.$inferSelect;
-export type InsertAIGeneratedContent = z.infer<typeof insertAiGeneratedContentSchema>;
+export type InsertAIGeneratedContent = z.infer<
+  typeof insertAiGeneratedContentSchema
+>;
 
 // Seller Documents
 export const sellerDocuments = pgTable("seller_documents", {
   id: serial("id").primaryKey(),
-  sellerId: integer("seller_id").notNull().references(() => users.id),
+  sellerId: integer("seller_id")
+    .notNull()
+    .references(() => users.id),
   documentType: text("document_type").notNull(), // e.g., "GST Certificate", "PAN Card", etc.
   documentUrl: text("document_url").notNull(),
   documentName: text("document_name").notNull(),
@@ -1100,7 +1260,9 @@ export const sellerDocuments = pgTable("seller_documents", {
   verifiedAt: timestamp("verified_at"),
 });
 
-export const insertSellerDocumentSchema = createInsertSchema(sellerDocuments).omit({
+export const insertSellerDocumentSchema = createInsertSchema(
+  sellerDocuments
+).omit({
   id: true,
   verified: true,
   uploadedAt: true,
@@ -1113,7 +1275,10 @@ export type InsertSellerDocument = z.infer<typeof insertSellerDocumentSchema>;
 // Business Details
 export const businessDetails = pgTable("business_details", {
   id: serial("id").primaryKey(),
-  sellerId: integer("seller_id").notNull().references(() => users.id).unique(),
+  sellerId: integer("seller_id")
+    .notNull()
+    .references(() => users.id)
+    .unique(),
   businessName: text("business_name").notNull(),
   gstNumber: text("gst_number"),
   panNumber: text("pan_number"),
@@ -1121,7 +1286,9 @@ export const businessDetails = pgTable("business_details", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export const insertBusinessDetailsSchema = createInsertSchema(businessDetails).omit({
+export const insertBusinessDetailsSchema = createInsertSchema(
+  businessDetails
+).omit({
   id: true,
   updatedAt: true,
 });
@@ -1132,7 +1299,10 @@ export type InsertBusinessDetails = z.infer<typeof insertBusinessDetailsSchema>;
 // Banking Information
 export const bankingInformation = pgTable("banking_information", {
   id: serial("id").primaryKey(),
-  sellerId: integer("seller_id").notNull().references(() => users.id).unique(),
+  sellerId: integer("seller_id")
+    .notNull()
+    .references(() => users.id)
+    .unique(),
   accountHolderName: text("account_holder_name").notNull(),
   accountNumber: text("account_number").notNull(),
   bankName: text("bank_name").notNull(),
@@ -1140,13 +1310,17 @@ export const bankingInformation = pgTable("banking_information", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export const insertBankingInformationSchema = createInsertSchema(bankingInformation).omit({
+export const insertBankingInformationSchema = createInsertSchema(
+  bankingInformation
+).omit({
   id: true,
   updatedAt: true,
 });
 
 export type BankingInformation = typeof bankingInformation.$inferSelect;
-export type InsertBankingInformation = z.infer<typeof insertBankingInformationSchema>;
+export type InsertBankingInformation = z.infer<
+  typeof insertBankingInformationSchema
+>;
 
 // Banner schema for hero section
 export const banners = pgTable("banners", {
@@ -1186,7 +1360,9 @@ export const shippingMethods = pgTable("shipping_methods", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-export const insertShippingMethodSchema = createInsertSchema(shippingMethods).pick({
+export const insertShippingMethodSchema = createInsertSchema(
+  shippingMethods
+).pick({
   name: true,
   description: true,
   price: true,
@@ -1222,8 +1398,12 @@ export const insertShippingZoneSchema = createInsertSchema(shippingZones).pick({
 // Shipping Rules table (connects methods to zones with specific pricing)
 export const shippingRules = pgTable("shipping_rules", {
   id: serial("id").primaryKey(),
-  zoneId: integer("zone_id").notNull().references(() => shippingZones.id),
-  methodId: integer("method_id").notNull().references(() => shippingMethods.id),
+  zoneId: integer("zone_id")
+    .notNull()
+    .references(() => shippingZones.id),
+  methodId: integer("method_id")
+    .notNull()
+    .references(() => shippingMethods.id),
   price: integer("price"), // Override price for this zone-method combination (optional)
   freeShippingThreshold: integer("free_shipping_threshold"), // Minimum order amount for free shipping
   additionalDays: integer("additional_days").default(0), // Additional days for this zone
@@ -1244,19 +1424,29 @@ export const insertShippingRuleSchema = createInsertSchema(shippingRules).pick({
 // Seller Shipping Settings table
 export const sellerShippingSettings = pgTable("seller_shipping_settings", {
   id: serial("id").primaryKey(),
-  sellerId: integer("seller_id").notNull().references(() => users.id),
-  enableCustomShipping: boolean("enable_custom_shipping").notNull().default(false),
-  defaultShippingMethodId: integer("default_shipping_method_id").references(() => shippingMethods.id),
+  sellerId: integer("seller_id")
+    .notNull()
+    .references(() => users.id),
+  enableCustomShipping: boolean("enable_custom_shipping")
+    .notNull()
+    .default(false),
+  defaultShippingMethodId: integer("default_shipping_method_id").references(
+    () => shippingMethods.id
+  ),
   freeShippingThreshold: integer("free_shipping_threshold"), // Minimum order amount for free shipping
   processingTime: text("processing_time"), // e.g., "1-2 business days"
   shippingPolicy: text("shipping_policy"), // Text description of shipping policy
   returnPolicy: text("return_policy"), // Text description of return policy
-  internationalShipping: boolean("international_shipping").notNull().default(false),
+  internationalShipping: boolean("international_shipping")
+    .notNull()
+    .default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-export const insertSellerShippingSettingsSchema = createInsertSchema(sellerShippingSettings).pick({
+export const insertSellerShippingSettingsSchema = createInsertSchema(
+  sellerShippingSettings
+).pick({
   sellerId: true,
   enableCustomShipping: true,
   defaultShippingMethodId: true,
@@ -1270,8 +1460,12 @@ export const insertSellerShippingSettingsSchema = createInsertSchema(sellerShipp
 // Product Shipping Overrides table
 export const productShippingOverrides = pgTable("product_shipping_overrides", {
   id: serial("id").primaryKey(),
-  sellerId: integer("seller_id").notNull().references(() => users.id),
-  productId: integer("product_id").notNull().references(() => products.id),
+  sellerId: integer("seller_id")
+    .notNull()
+    .references(() => users.id),
+  productId: integer("product_id")
+    .notNull()
+    .references(() => products.id),
   customPrice: integer("custom_price"), // Custom shipping price
   freeShipping: boolean("free_shipping").notNull().default(false),
   additionalProcessingDays: integer("additional_processing_days").default(0),
@@ -1280,7 +1474,9 @@ export const productShippingOverrides = pgTable("product_shipping_overrides", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-export const insertProductShippingOverrideSchema = createInsertSchema(productShippingOverrides).pick({
+export const insertProductShippingOverrideSchema = createInsertSchema(
+  productShippingOverrides
+).pick({
   sellerId: true,
   productId: true,
   customPrice: true,
@@ -1292,7 +1488,9 @@ export const insertProductShippingOverrideSchema = createInsertSchema(productShi
 // Shipping Tracking table
 export const shippingTracking = pgTable("shipping_tracking", {
   id: serial("id").primaryKey(),
-  orderId: integer("order_id").notNull().references(() => orders.id),
+  orderId: integer("order_id")
+    .notNull()
+    .references(() => orders.id),
   carrier: text("carrier"), // Shipping carrier name
   trackingNumber: text("tracking_number"),
   trackingUrl: text("tracking_url"),
@@ -1305,7 +1503,9 @@ export const shippingTracking = pgTable("shipping_tracking", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-export const insertShippingTrackingSchema = createInsertSchema(shippingTracking).pick({
+export const insertShippingTrackingSchema = createInsertSchema(
+  shippingTracking
+).pick({
   orderId: true,
   carrier: true,
   trackingNumber: true,
@@ -1318,10 +1518,13 @@ export const insertShippingTrackingSchema = createInsertSchema(shippingTracking)
 });
 
 // Relations
-export const shippingMethodsRelations = relations(shippingMethods, ({ many }) => ({
-  rules: many(shippingRules),
-  sellerSettings: many(sellerShippingSettings),
-}));
+export const shippingMethodsRelations = relations(
+  shippingMethods,
+  ({ many }) => ({
+    rules: many(shippingRules),
+    sellerSettings: many(sellerShippingSettings),
+  })
+);
 
 export const shippingZonesRelations = relations(shippingZones, ({ many }) => ({
   rules: many(shippingRules),
@@ -1338,34 +1541,43 @@ export const shippingRulesRelations = relations(shippingRules, ({ one }) => ({
   }),
 }));
 
-export const sellerShippingSettingsRelations = relations(sellerShippingSettings, ({ one }) => ({
-  seller: one(users, {
-    fields: [sellerShippingSettings.sellerId],
-    references: [users.id],
-  }),
-  defaultMethod: one(shippingMethods, {
-    fields: [sellerShippingSettings.defaultShippingMethodId],
-    references: [shippingMethods.id],
-  }),
-}));
+export const sellerShippingSettingsRelations = relations(
+  sellerShippingSettings,
+  ({ one }) => ({
+    seller: one(users, {
+      fields: [sellerShippingSettings.sellerId],
+      references: [users.id],
+    }),
+    defaultMethod: one(shippingMethods, {
+      fields: [sellerShippingSettings.defaultShippingMethodId],
+      references: [shippingMethods.id],
+    }),
+  })
+);
 
-export const productShippingOverridesRelations = relations(productShippingOverrides, ({ one }) => ({
-  product: one(products, {
-    fields: [productShippingOverrides.productId],
-    references: [products.id],
-  }),
-  seller: one(users, {
-    fields: [productShippingOverrides.sellerId],
-    references: [users.id],
-  }),
-}));
+export const productShippingOverridesRelations = relations(
+  productShippingOverrides,
+  ({ one }) => ({
+    product: one(products, {
+      fields: [productShippingOverrides.productId],
+      references: [products.id],
+    }),
+    seller: one(users, {
+      fields: [productShippingOverrides.sellerId],
+      references: [users.id],
+    }),
+  })
+);
 
-export const shippingTrackingRelations = relations(shippingTracking, ({ one }) => ({
-  order: one(orders, {
-    fields: [shippingTracking.orderId],
-    references: [orders.id],
-  }),
-}));
+export const shippingTrackingRelations = relations(
+  shippingTracking,
+  ({ one }) => ({
+    order: one(orders, {
+      fields: [shippingTracking.orderId],
+      references: [orders.id],
+    }),
+  })
+);
 
 // Extend orders relations to include tracking
 export const ordersTrackingRelations = relations(orders, ({ one }) => ({
@@ -1383,23 +1595,38 @@ export type ShippingRule = typeof shippingRules.$inferSelect;
 export type InsertShippingRule = z.infer<typeof insertShippingRuleSchema>;
 
 export type SellerShippingSetting = typeof sellerShippingSettings.$inferSelect;
-export type InsertSellerShippingSetting = z.infer<typeof insertSellerShippingSettingsSchema>;
+export type InsertSellerShippingSetting = z.infer<
+  typeof insertSellerShippingSettingsSchema
+>;
 
-export type ProductShippingOverride = typeof productShippingOverrides.$inferSelect;
-export type InsertProductShippingOverride = z.infer<typeof insertProductShippingOverrideSchema>;
+export type ProductShippingOverride =
+  typeof productShippingOverrides.$inferSelect;
+export type InsertProductShippingOverride = z.infer<
+  typeof insertProductShippingOverrideSchema
+>;
 
 export type ShippingTracking = typeof shippingTracking.$inferSelect;
-export type InsertShippingTracking = z.infer<typeof insertShippingTrackingSchema>;
+export type InsertShippingTracking = z.infer<
+  typeof insertShippingTrackingSchema
+>;
 
 export type ProductDisplaySettings = typeof productDisplaySettings.$inferSelect;
-export type InsertProductDisplaySettings = z.infer<typeof insertProductDisplaySettingsSchema>;
+export type InsertProductDisplaySettings = z.infer<
+  typeof insertProductDisplaySettingsSchema
+>;
 
 // ====================== RETURNS SCHEMA ======================
 export const returns = pgTable("returns", {
   id: serial("id").primaryKey(),
-  orderId: integer("order_id").notNull().references(() => orders.id),
-  productId: integer("product_id").notNull().references(() => products.id),
-  sellerId: integer("seller_id").notNull().references(() => users.id),
+  orderId: integer("order_id")
+    .notNull()
+    .references(() => orders.id),
+  productId: integer("product_id")
+    .notNull()
+    .references(() => products.id),
+  sellerId: integer("seller_id")
+    .notNull()
+    .references(() => users.id),
   returnReason: text("return_reason").notNull(),
   returnStatus: text("return_status").notNull().default("requested"), // requested, approved, rejected, completed
   returnDate: timestamp("return_date").notNull().defaultNow(),
@@ -1435,11 +1662,18 @@ export const returnsRelations = relations(returns, ({ one }) => ({
 // ====================== ANALYTICS SCHEMA ======================
 export const sellerAnalytics = pgTable("seller_analytics", {
   id: serial("id").primaryKey(),
-  sellerId: integer("seller_id").notNull().references(() => users.id),
+  sellerId: integer("seller_id")
+    .notNull()
+    .references(() => users.id),
   date: timestamp("date").notNull(),
   totalOrders: integer("total_orders").notNull().default(0),
-  totalRevenue: decimal("total_revenue", { precision: 10, scale: 2 }).notNull().default("0"),
-  averageOrderValue: decimal("average_order_value", { precision: 10, scale: 2 }),
+  totalRevenue: decimal("total_revenue", { precision: 10, scale: 2 })
+    .notNull()
+    .default("0"),
+  averageOrderValue: decimal("average_order_value", {
+    precision: 10,
+    scale: 2,
+  }),
   totalVisitors: integer("total_visitors").default(0),
   conversionRate: decimal("conversion_rate", { precision: 5, scale: 2 }),
   topProducts: text("top_products"), // JSON array of top product IDs
@@ -1448,23 +1682,30 @@ export const sellerAnalytics = pgTable("seller_analytics", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-export const insertSellerAnalyticsSchema = createInsertSchema(sellerAnalytics).omit({
+export const insertSellerAnalyticsSchema = createInsertSchema(
+  sellerAnalytics
+).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
 });
 
-export const sellerAnalyticsRelations = relations(sellerAnalytics, ({ one }) => ({
-  seller: one(users, {
-    fields: [sellerAnalytics.sellerId],
-    references: [users.id],
-  }),
-}));
+export const sellerAnalyticsRelations = relations(
+  sellerAnalytics,
+  ({ one }) => ({
+    seller: one(users, {
+      fields: [sellerAnalytics.sellerId],
+      references: [users.id],
+    }),
+  })
+);
 
 // ====================== PAYMENTS SCHEMA ======================
 export const sellerPayments = pgTable("seller_payments", {
   id: serial("id").primaryKey(),
-  sellerId: integer("seller_id").notNull().references(() => users.id),
+  sellerId: integer("seller_id")
+    .notNull()
+    .references(() => users.id),
   amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
   status: text("status").notNull().default("pending"), // pending, processing, completed, failed
   paymentDate: timestamp("payment_date"),
@@ -1475,7 +1716,9 @@ export const sellerPayments = pgTable("seller_payments", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-export const insertSellerPaymentSchema = createInsertSchema(sellerPayments).omit({
+export const insertSellerPaymentSchema = createInsertSchema(
+  sellerPayments
+).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
@@ -1491,7 +1734,10 @@ export const sellerPaymentsRelations = relations(sellerPayments, ({ one }) => ({
 // ====================== SETTINGS SCHEMA ======================
 export const sellerSettings = pgTable("seller_settings", {
   id: serial("id").primaryKey(),
-  sellerId: integer("seller_id").notNull().references(() => users.id).unique(),
+  sellerId: integer("seller_id")
+    .notNull()
+    .references(() => users.id)
+    .unique(),
   notificationPreferences: text("notification_preferences"), // JSON object of notification settings
   taxInformation: text("tax_information"), // JSON object with tax details
   returnPolicy: text("return_policy"), // Store return policy text
@@ -1506,7 +1752,9 @@ export const sellerSettings = pgTable("seller_settings", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-export const insertSellerSettingsSchema = createInsertSchema(sellerSettings).omit({
+export const insertSellerSettingsSchema = createInsertSchema(
+  sellerSettings
+).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
@@ -1522,7 +1770,9 @@ export const sellerSettingsRelations = relations(sellerSettings, ({ one }) => ({
 // ====================== HELP AND SUPPORT SCHEMA ======================
 export const supportTickets = pgTable("support_tickets", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull().references(() => users.id),
+  userId: integer("user_id")
+    .notNull()
+    .references(() => users.id),
   subject: text("subject").notNull(),
   description: text("description").notNull(),
   status: text("status").notNull().default("open"), // open, in_progress, resolved, closed
@@ -1535,7 +1785,9 @@ export const supportTickets = pgTable("support_tickets", {
   resolvedDate: timestamp("resolved_date"),
 });
 
-export const insertSupportTicketSchema = createInsertSchema(supportTickets).omit({
+export const insertSupportTicketSchema = createInsertSchema(
+  supportTickets
+).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
@@ -1544,40 +1796,52 @@ export const insertSupportTicketSchema = createInsertSchema(supportTickets).omit
 
 export const supportMessages = pgTable("support_messages", {
   id: serial("id").primaryKey(),
-  ticketId: integer("ticket_id").notNull().references(() => supportTickets.id),
-  userId: integer("user_id").notNull().references(() => users.id),
+  ticketId: integer("ticket_id")
+    .notNull()
+    .references(() => supportTickets.id),
+  userId: integer("user_id")
+    .notNull()
+    .references(() => users.id),
   message: text("message").notNull(),
   attachments: text("attachments"), // JSON array of attachment URLs
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-export const insertSupportMessageSchema = createInsertSchema(supportMessages).omit({
+export const insertSupportMessageSchema = createInsertSchema(
+  supportMessages
+).omit({
   id: true,
   createdAt: true,
 });
 
-export const supportTicketsRelations = relations(supportTickets, ({ one, many }) => ({
-  user: one(users, {
-    fields: [supportTickets.userId],
-    references: [users.id],
-  }),
-  assignedToUser: one(users, {
-    fields: [supportTickets.assignedTo],
-    references: [users.id],
-  }),
-  messages: many(supportMessages),
-}));
+export const supportTicketsRelations = relations(
+  supportTickets,
+  ({ one, many }) => ({
+    user: one(users, {
+      fields: [supportTickets.userId],
+      references: [users.id],
+    }),
+    assignedToUser: one(users, {
+      fields: [supportTickets.assignedTo],
+      references: [users.id],
+    }),
+    messages: many(supportMessages),
+  })
+);
 
-export const supportMessagesRelations = relations(supportMessages, ({ one }) => ({
-  ticket: one(supportTickets, {
-    fields: [supportMessages.ticketId],
-    references: [supportTickets.id],
-  }),
-  user: one(users, {
-    fields: [supportMessages.userId],
-    references: [users.id],
-  }),
-}));
+export const supportMessagesRelations = relations(
+  supportMessages,
+  ({ one }) => ({
+    ticket: one(supportTickets, {
+      fields: [supportMessages.ticketId],
+      references: [supportTickets.id],
+    }),
+    user: one(users, {
+      fields: [supportMessages.userId],
+      references: [users.id],
+    }),
+  })
+);
 
 // Type exports for new schemas
 export type Return = typeof returns.$inferSelect;
@@ -1601,7 +1865,9 @@ export type InsertSupportMessage = z.infer<typeof insertSupportMessageSchema>;
 // Rewards system schema
 export const rewards = pgTable("rewards", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").references(() => users.id, { onDelete: "cascade" }),
+  userId: integer("user_id").references(() => users.id, {
+    onDelete: "cascade",
+  }),
   points: integer("points").notNull().default(0),
   lifetimePoints: integer("lifetime_points").notNull().default(0),
   lastUpdated: timestamp("last_updated").defaultNow(),
@@ -1610,9 +1876,15 @@ export const rewards = pgTable("rewards", {
 
 export const rewardTransactions = pgTable("reward_transactions", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
-  orderId: integer("order_id").references(() => orders.id, { onDelete: "set null" }),
-  productId: integer("product_id").references(() => products.id, { onDelete: "set null" }),
+  userId: integer("user_id")
+    .references(() => users.id, { onDelete: "cascade" })
+    .notNull(),
+  orderId: integer("order_id").references(() => orders.id, {
+    onDelete: "set null",
+  }),
+  productId: integer("product_id").references(() => products.id, {
+    onDelete: "set null",
+  }),
   points: integer("points").notNull(),
   type: text("type").notNull(), // earn, redeem, expire, bonus, referral
   description: text("description"),
@@ -1629,7 +1901,9 @@ export const rewardRules = pgTable("reward_rules", {
   pointsAwarded: integer("points_awarded").notNull(),
   minimumOrderValue: integer("minimum_order_value"),
   percentageValue: decimal("percentage_value"), // For purchase-based rewards
-  categoryId: integer("category_id").references(() => categories.id, { onDelete: "set null" }),
+  categoryId: integer("category_id").references(() => categories.id, {
+    onDelete: "set null",
+  }),
   validFrom: timestamp("valid_from"),
   validTo: timestamp("valid_to"),
   active: boolean("active").notNull().default(true),
@@ -1643,8 +1917,12 @@ export const giftCards = pgTable("gift_cards", {
   code: text("code").notNull().unique(),
   initialValue: integer("initial_value").notNull(),
   currentBalance: integer("current_balance").notNull(),
-  issuedTo: integer("issued_to").references(() => users.id, { onDelete: "set null" }),
-  purchasedBy: integer("purchased_by").references(() => users.id, { onDelete: "set null" }),
+  issuedTo: integer("issued_to").references(() => users.id, {
+    onDelete: "set null",
+  }),
+  purchasedBy: integer("purchased_by").references(() => users.id, {
+    onDelete: "set null",
+  }),
   isActive: boolean("is_active").notNull().default(true),
   expiryDate: timestamp("expiry_date"),
   createdAt: timestamp("created_at").defaultNow(),
@@ -1657,9 +1935,15 @@ export const giftCards = pgTable("gift_cards", {
 
 export const giftCardTransactions = pgTable("gift_card_transactions", {
   id: serial("id").primaryKey(),
-  giftCardId: integer("gift_card_id").references(() => giftCards.id, { onDelete: "cascade" }).notNull(),
-  userId: integer("user_id").references(() => users.id, { onDelete: "set null" }),
-  orderId: integer("order_id").references(() => orders.id, { onDelete: "set null" }),
+  giftCardId: integer("gift_card_id")
+    .references(() => giftCards.id, { onDelete: "cascade" })
+    .notNull(),
+  userId: integer("user_id").references(() => users.id, {
+    onDelete: "set null",
+  }),
+  orderId: integer("order_id").references(() => orders.id, {
+    onDelete: "set null",
+  }),
   amount: integer("amount").notNull(),
   type: text("type").notNull(), // purchase, redemption, refund
   transactionDate: timestamp("transaction_date").defaultNow(),
@@ -1685,20 +1969,23 @@ export const rewardsRelations = relations(rewards, ({ one }) => ({
   }),
 }));
 
-export const rewardTransactionsRelations = relations(rewardTransactions, ({ one }) => ({
-  user: one(users, {
-    fields: [rewardTransactions.userId],
-    references: [users.id],
-  }),
-  order: one(orders, {
-    fields: [rewardTransactions.orderId],
-    references: [orders.id],
-  }),
-  product: one(products, {
-    fields: [rewardTransactions.productId],
-    references: [products.id],
-  }),
-}));
+export const rewardTransactionsRelations = relations(
+  rewardTransactions,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [rewardTransactions.userId],
+      references: [users.id],
+    }),
+    order: one(orders, {
+      fields: [rewardTransactions.orderId],
+      references: [orders.id],
+    }),
+    product: one(products, {
+      fields: [rewardTransactions.productId],
+      references: [products.id],
+    }),
+  })
+);
 
 export const giftCardsRelations = relations(giftCards, ({ one, many }) => ({
   issuedToUser: one(users, {
@@ -1712,35 +1999,43 @@ export const giftCardsRelations = relations(giftCards, ({ one, many }) => ({
   transactions: many(giftCardTransactions),
 }));
 
-export const giftCardTransactionsRelations = relations(giftCardTransactions, ({ one }) => ({
-  giftCard: one(giftCards, {
-    fields: [giftCardTransactions.giftCardId],
-    references: [giftCards.id],
-  }),
-  user: one(users, {
-    fields: [giftCardTransactions.userId],
-    references: [users.id],
-  }),
-  order: one(orders, {
-    fields: [giftCardTransactions.orderId],
-    references: [orders.id],
-  }),
-}));
+export const giftCardTransactionsRelations = relations(
+  giftCardTransactions,
+  ({ one }) => ({
+    giftCard: one(giftCards, {
+      fields: [giftCardTransactions.giftCardId],
+      references: [giftCards.id],
+    }),
+    user: one(users, {
+      fields: [giftCardTransactions.userId],
+      references: [users.id],
+    }),
+    order: one(orders, {
+      fields: [giftCardTransactions.orderId],
+      references: [orders.id],
+    }),
+  })
+);
 
 // Create insert schemas
 export const insertRewardSchema = createInsertSchema(rewards);
-export const insertRewardTransactionSchema = createInsertSchema(rewardTransactions);
+export const insertRewardTransactionSchema =
+  createInsertSchema(rewardTransactions);
 export const insertRewardRuleSchema = createInsertSchema(rewardRules);
 export const insertGiftCardSchema = createInsertSchema(giftCards);
-export const insertGiftCardTransactionSchema = createInsertSchema(giftCardTransactions);
-export const insertGiftCardTemplateSchema = createInsertSchema(giftCardTemplates);
+export const insertGiftCardTransactionSchema =
+  createInsertSchema(giftCardTransactions);
+export const insertGiftCardTemplateSchema =
+  createInsertSchema(giftCardTemplates);
 
 // Types
 export type SelectReward = typeof rewards.$inferSelect;
 export type InsertReward = z.infer<typeof insertRewardSchema>;
 
 export type SelectRewardTransaction = typeof rewardTransactions.$inferSelect;
-export type InsertRewardTransaction = z.infer<typeof insertRewardTransactionSchema>;
+export type InsertRewardTransaction = z.infer<
+  typeof insertRewardTransactionSchema
+>;
 
 export type SelectRewardRule = typeof rewardRules.$inferSelect;
 export type InsertRewardRule = z.infer<typeof insertRewardRuleSchema>;
@@ -1748,71 +2043,89 @@ export type InsertRewardRule = z.infer<typeof insertRewardRuleSchema>;
 export type SelectGiftCard = typeof giftCards.$inferSelect;
 export type InsertGiftCard = z.infer<typeof insertGiftCardSchema>;
 
-export type SelectGiftCardTransaction = typeof giftCardTransactions.$inferSelect;
-export type InsertGiftCardTransaction = z.infer<typeof insertGiftCardTransactionSchema>;
+export type SelectGiftCardTransaction =
+  typeof giftCardTransactions.$inferSelect;
+export type InsertGiftCardTransaction = z.infer<
+  typeof insertGiftCardTransactionSchema
+>;
 
 export type SelectGiftCardTemplate = typeof giftCardTemplates.$inferSelect;
-export type InsertGiftCardTemplate = z.infer<typeof insertGiftCardTemplateSchema>;
+export type InsertGiftCardTemplate = z.infer<
+  typeof insertGiftCardTemplateSchema
+>;
 
 // Wallet System Schema
 export const walletSettings = pgTable("wallet_settings", {
   id: serial("id").primaryKey(),
   firstPurchaseCoins: integer("first_purchase_coins").notNull().default(500),
-  coinToCurrencyRatio: decimal("coin_to_currency_ratio").notNull().default("0.10"),
+  coinToCurrencyRatio: decimal("coin_to_currency_ratio")
+    .notNull()
+    .default("0.10"),
   minOrderValue: decimal("min_order_value").notNull().default("500.00"),
   maxRedeemableCoins: integer("max_redeemable_coins").notNull().default(200),
   coinExpiryDays: integer("coin_expiry_days").notNull().default(90),
   // New fields
-  maxUsagePercentage: decimal("max_usage_percentage").notNull().default("20.00"), // Max % of order value that can be paid with coins
+  maxUsagePercentage: decimal("max_usage_percentage")
+    .notNull()
+    .default("20.00"), // Max % of order value that can be paid with coins
   minCartValue: decimal("min_cart_value").notNull().default("0.00"), // Minimum cart value required to use coins
   applicableCategories: text("applicable_categories"), // Comma-separated list of category names where coins can be applied
   isEnabled: boolean("is_enabled").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow()
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
 export const wallets = pgTable("wallets", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }).unique(),
+  userId: integer("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" })
+    .unique(),
   balance: integer("balance").notNull().default(0),
   lifetimeEarned: integer("lifetime_earned").notNull().default(0),
   lifetimeRedeemed: integer("lifetime_redeemed").notNull().default(0),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow()
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
 export const walletTransactions = pgTable("wallet_transactions", {
   id: serial("id").primaryKey(),
-  walletId: integer("wallet_id").notNull().references(() => wallets.id, { onDelete: "cascade" }),
+  walletId: integer("wallet_id")
+    .notNull()
+    .references(() => wallets.id, { onDelete: "cascade" }),
   amount: integer("amount").notNull(),
   transactionType: text("transaction_type").notNull(), // 'CREDIT', 'DEBIT', 'EXPIRED'
   referenceType: text("reference_type"), // 'ORDER', 'REFUND', 'ADJUSTMENT', etc.
   referenceId: integer("reference_id"), // ID of the referenced entity
   description: text("description"),
   expiresAt: timestamp("expires_at"),
-  createdAt: timestamp("created_at").notNull().defaultNow()
+  createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
 // Relations
 export const walletsRelations = relations(wallets, ({ one, many }) => ({
   user: one(users, {
     fields: [wallets.userId],
-    references: [users.id]
+    references: [users.id],
   }),
-  transactions: many(walletTransactions)
+  transactions: many(walletTransactions),
 }));
 
-export const walletTransactionsRelations = relations(walletTransactions, ({ one }) => ({
-  wallet: one(wallets, {
-    fields: [walletTransactions.walletId],
-    references: [wallets.id]
+export const walletTransactionsRelations = relations(
+  walletTransactions,
+  ({ one }) => ({
+    wallet: one(wallets, {
+      fields: [walletTransactions.walletId],
+      references: [wallets.id],
+    }),
   })
-}));
+);
 
 // Insert Schemas
 export const insertWalletSettingsSchema = createInsertSchema(walletSettings);
 export const insertWalletSchema = createInsertSchema(wallets);
-export const insertWalletTransactionSchema = createInsertSchema(walletTransactions);
+export const insertWalletTransactionSchema =
+  createInsertSchema(walletTransactions);
 
 // Types
 export type SelectWalletSettings = typeof walletSettings.$inferSelect;
@@ -1822,7 +2135,9 @@ export type SelectWallet = typeof wallets.$inferSelect;
 export type InsertWallet = z.infer<typeof insertWalletSchema>;
 
 export type SelectWalletTransaction = typeof walletTransactions.$inferSelect;
-export type InsertWalletTransaction = z.infer<typeof insertWalletTransactionSchema>;
+export type InsertWalletTransaction = z.infer<
+  typeof insertWalletTransactionSchema
+>;
 
 // Shiprocket settings
 // Shiprocket integration removed
@@ -1830,7 +2145,9 @@ export type InsertWalletTransaction = z.infer<typeof insertWalletTransactionSche
 // Notifications schema
 export const notifications = pgTable("notifications", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  userId: integer("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
   type: text("type").notNull(), // Uses NotificationType values
   title: text("title").notNull(),
   message: text("message").notNull(),
@@ -1872,7 +2189,9 @@ export const systemSettings = pgTable("system_settings", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-export const insertSystemSettingsSchema = createInsertSchema(systemSettings).omit({
+export const insertSystemSettingsSchema = createInsertSchema(
+  systemSettings
+).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
@@ -1885,27 +2204,33 @@ export type SellerAgreement = typeof sellerAgreements.$inferSelect;
 export type InsertSellerAgreement = z.infer<typeof insertSellerAgreementSchema>;
 
 export type AcceptedAgreement = typeof acceptedAgreements.$inferSelect;
-export type InsertAcceptedAgreement = z.infer<typeof insertAcceptedAgreementSchema>;
+export type InsertAcceptedAgreement = z.infer<
+  typeof insertAcceptedAgreementSchema
+>;
 
 // Document Templates (invoice, shipping slips, etc.)
-export const documentTemplates = pgTable('document_templates', {
-  id: serial('id').primaryKey(),
-  type: text('type').notNull(), // 'invoice', 'shipping_slip', etc.
-  name: text('name').notNull(),
-  content: text('content').notNull(), // HTML/Handlebars template
-  isDefault: boolean('is_default').default(false),
-  createdAt: timestamp('created_at').defaultNow(),
-  updatedAt: timestamp('updated_at')
+export const documentTemplates = pgTable("document_templates", {
+  id: serial("id").primaryKey(),
+  type: text("type").notNull(), // 'invoice', 'shipping_slip', etc.
+  name: text("name").notNull(),
+  content: text("content").notNull(), // HTML/Handlebars template
+  isDefault: boolean("is_default").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at"),
 });
 
-export const insertDocumentTemplateSchema = createInsertSchema(documentTemplates).omit({
+export const insertDocumentTemplateSchema = createInsertSchema(
+  documentTemplates
+).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
 });
 
 export type DocumentTemplate = typeof documentTemplates.$inferSelect;
-export type InsertDocumentTemplate = z.infer<typeof insertDocumentTemplateSchema>;
+export type InsertDocumentTemplate = z.infer<
+  typeof insertDocumentTemplateSchema
+>;
 
 // Media Library for centralized image storage
 export const mediaLibrary = pgTable("media_library", {
@@ -1923,7 +2248,7 @@ export const mediaLibrary = pgTable("media_library", {
 
 export const insertMediaLibrarySchema = createInsertSchema(mediaLibrary).omit({
   id: true,
-  createdAt: true
+  createdAt: true,
 });
 
 export const mediaLibraryRelations = relations(mediaLibrary, ({ one }) => ({

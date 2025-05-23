@@ -2355,6 +2355,12 @@ export class DatabaseStorage implements IStorage {
             rejected: products.rejected,
             deleted: products.deleted,
             isDraft: products.isDraft,
+            weight: products.weight,
+            height: products.height,
+            width: products.width,
+            length: products.length,
+            warranty: products.warranty,
+            returnPolicy: products.returnPolicy,
             createdAt: products.createdAt
           },
           categoryGstRate: categories.gstRate,
@@ -2437,6 +2443,12 @@ export class DatabaseStorage implements IStorage {
               rejected: products.rejected,
               deleted: products.deleted,
               isDraft: products.isDraft,
+              weight: products.weight,
+              height: products.height,
+              width: products.width,
+              length: products.length,
+              warranty: products.warranty,
+              returnPolicy: products.returnPolicy,
               createdAt: products.createdAt
             },
             sellerName: users.name,
@@ -2486,6 +2498,12 @@ export class DatabaseStorage implements IStorage {
             rejected: products.rejected,
             deleted: products.deleted,
             isDraft: products.isDraft,
+            weight: products.weight,
+            height: products.height,
+            width: products.width,
+            length: products.length,
+            warranty: products.warranty,
+            returnPolicy: products.returnPolicy,
             createdAt: products.createdAt
           })
           .from(products)

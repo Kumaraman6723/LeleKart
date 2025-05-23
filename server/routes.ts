@@ -2569,15 +2569,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Otherwise, for buyers only show approved products
       let approved: boolean | undefined;
 
-      // Should we hide draft products?
-      let hideDrafts = req.query.hideDrafts === "true" || userRole === "buyer";
+      // Use isDraft instead of hideDrafts
+      let isDraft = req.query.isDraft === "true" || userRole === "buyer";
 
-      // Should we hide rejected products? Always hide for buyers and when hideDrafts is true
-      // If explicitly requested to hide
-      let hideRejected =
-        req.query.hideRejected === "true" ||
-        userRole === "buyer" ||
-        req.query.hideDrafts === "true";
+      // Use rejected instead of hideRejected
+      let rejected = req.query.rejected === "true" || userRole === "buyer" || req.query.isDraft === "true";
 
       if (req.query.approved !== undefined) {
         approved = req.query.approved === "true";
@@ -2599,16 +2595,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // and hide both draft and rejected products
       if (req.query.homepage === "true") {
         approved = true;
-        hideDrafts = true;
-        hideRejected = true;
+        isDraft = true;
+        rejected = true;
       }
 
       console.log("Fetching products with filters:", {
         category,
         sellerId,
         approved,
-        hideDrafts,
-        hideRejected,
+        isDraft,
+        rejected,
         page,
         limit,
         search,
@@ -2622,9 +2618,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         sellerId,
         approved,
         search,
-        hideDrafts,
+        isDraft,
         subcategory,
-        hideRejected
+        rejected
       );
       const totalPages = Math.ceil(totalCount / limit);
 
@@ -2648,9 +2644,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         offset,
         limit,
         search,
-        hideDrafts, // Pass hideDrafts parameter
+        isDraft, // Pass isDraft parameter
         subcategory, // Pass subcategory parameter
-        hideRejected // Pass hideRejected parameter
+        rejected // Pass rejected parameter
       );
       console.log(
         `Found ${products?.length || 0} products (page ${page}/${totalPages})`
@@ -2748,12 +2744,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       console.error("Error fetching products:", error);
-      res
-        .status(500)
-        .json({
-          error: "Failed to fetch products",
-          details: error instanceof Error ? error.message : "Unknown error",
-        });
+      res.status(500).json({
+        error: "Failed to fetch products",
+        details: error instanceof Error ? error.message : "Unknown error",
+      });
     }
   });
 
@@ -2794,16 +2788,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
         `Product ${product.id} GST calculation: Rate=${gstRate}%, Inclusive Price=${priceWithGst}, Base Price=${basePrice}, GST Amount=${gstAmount}`
       );
 
-      // Enhanced product with GST details
-      // Already has sellerName and sellerUsername directly in the product
+      // Enhanced product with GST details and all fields
       const enhancedProduct = {
         ...product,
+        // Ensure all fields are included
+        id: product.id,
+        name: product.name,
+        description: product.description,
+        specifications: product.specifications,
+        sku: product.sku,
+        mrp: product.mrp,
+        purchasePrice: product.purchasePrice,
+        price: product.price,
+        category: product.category,
+        categoryId: product.categoryId,
+        subcategoryId: product.subcategoryId,
+        color: product.color,
+        size: product.size,
+        imageUrl: product.imageUrl,
+        images: product.images,
+        sellerId: product.sellerId,
+        stock: product.stock,
+        gstRate: product.gstRate,
+        approved: product.approved,
+        rejected: product.rejected,
+        deleted: product.deleted,
+        isDraft: product.isDraft,
+        createdAt: product.createdAt,
+        // Additional fields
+        weight: product.weight,
+        height: product.height,
+        width: product.width,
+        length: product.length,
+        warranty: product.warranty,
+        returnPolicy: product.returnPolicy,
+        hsn: product.hsn,
+        brand: product.brand,
+        // GST details
         gstDetails: {
           gstRate,
           basePrice,
           gstAmount,
           priceWithGst,
         },
+        // Seller info
+        sellerName: product.sellerName,
+        sellerUsername: product.sellerUsername,
+        // Category info
+        categoryGstRate: product.categoryGstRate,
+        subcategory: product.subcategory,
       };
 
       // Check if we should include variants in the response - allow any value to trigger it
@@ -2913,22 +2946,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         // Check if the user is authorized (product owner or admin)
         if (product.sellerId !== req.user.id && req.user.role !== "admin") {
-          return res
-            .status(403)
-            .json({
-              error: "Not authorized to modify this product's variants",
-            });
+          return res.status(403).json({
+            error: "Not authorized to modify this product's variants",
+          });
         }
 
         // Get the variant to verify it exists and belongs to this product
         const variant = await storage.getProductVariantById(variantId);
 
         if (!variant || variant.productId !== productId) {
-          return res
-            .status(404)
-            .json({
-              error: "Variant not found or does not belong to this product",
-            });
+          return res.status(404).json({
+            error: "Variant not found or does not belong to this product",
+          });
         }
 
         console.log("Original request body:", req.body);
@@ -3217,7 +3246,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
             productData.product_type ||
             productData.type,
           return_policy: productData.returnPolicy || productData.return_policy,
+          // Handle dimension fields
+          weight: productData.weight ? Number(productData.weight) : null,
+          length: productData.length ? Number(productData.length) : null,
+          width: productData.width ? Number(productData.width) : null,
+          height: productData.height ? Number(productData.height) : null,
+          // Handle warranty
+          warranty: productData.warranty ? Number(productData.warranty) : null,
         };
+
+        // Validate numeric fields
+        if (
+          processedProductData.weight !== null &&
+          isNaN(processedProductData.weight)
+        ) {
+          throw new Error("Weight must be a valid number");
+        }
+        if (
+          processedProductData.length !== null &&
+          isNaN(processedProductData.length)
+        ) {
+          throw new Error("Length must be a valid number");
+        }
+        if (
+          processedProductData.width !== null &&
+          isNaN(processedProductData.width)
+        ) {
+          throw new Error("Width must be a valid number");
+        }
+        if (
+          processedProductData.height !== null &&
+          isNaN(processedProductData.height)
+        ) {
+          throw new Error("Height must be a valid number");
+        }
+        if (
+          processedProductData.warranty !== null &&
+          isNaN(processedProductData.warranty)
+        ) {
+          throw new Error("Warranty must be a valid number");
+        }
 
         console.log(
           "Processed product data:",
@@ -3313,45 +3381,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(403).json({ error: "Not authorized" });
 
     try {
-      // Extract data from request
-      const productData = req.body;
+      const { productData } = req.body;
 
-      console.log(
-        "Received draft product data:",
-        JSON.stringify(productData, null, 2)
-      );
-      console.log("User ID:", req.user.id);
-
-      // For drafts, we have more relaxed validation
-      // Only require that the product has a name at minimum
-      if (!productData.name) {
-        return res
-          .status(400)
-          .json({ error: "Product name is required, even for drafts" });
-      }
-
-      // Handle images data - normalize to consistent format
-      let imageUrl = productData.imageUrl;
+      // Process images
       let imagesArray = [];
-
-      // If we have images field, try to parse it if it's a string, or use it directly if array
-      if (productData.images) {
-        if (typeof productData.images === "string") {
-          try {
-            // Try to parse JSON string
-            imagesArray = JSON.parse(productData.images);
-            if (!Array.isArray(imagesArray)) {
-              // If not an array after parsing, make it an array
-              imagesArray = [productData.images];
-            }
-          } catch (e) {
-            // If not valid JSON, treat as single URL
-            imagesArray = [productData.images];
-          }
-        } else if (Array.isArray(productData.images)) {
-          imagesArray = productData.images;
-        }
-      }
+      let imageUrl = productData.imageUrl || productData.image_url;
 
       // If we have imageUrl but no images array, use it
       if (imageUrl && !imagesArray.length) {
@@ -3363,7 +3397,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Fallback for empty images
       if (!imageUrl) {
-        imageUrl = "https://via.placeholder.com/400x400?text=Draft+Product";
+        imageUrl = "https://dummyimage.com/400x400/cccccc/000000.png&text=Draft+Product";
       }
 
       // Set required fields for a draft product with careful type handling
@@ -3397,15 +3431,68 @@ export async function registerRoutes(app: Express): Promise<Server> {
             : typeof productData.gstRate === "string" && productData.gstRate
             ? parseFloat(productData.gstRate)
             : null,
+        // Handle dimension fields
+        weight:
+          typeof productData.weight === "number"
+            ? productData.weight
+            : typeof productData.weight === "string" && productData.weight
+            ? parseFloat(productData.weight)
+            : null,
+        length:
+          typeof productData.length === "number"
+            ? productData.length
+            : typeof productData.length === "string" && productData.length
+            ? parseFloat(productData.length)
+            : null,
+        width:
+          typeof productData.width === "number"
+            ? productData.width
+            : typeof productData.width === "string" && productData.width
+            ? parseFloat(productData.width)
+            : null,
+        height:
+          typeof productData.height === "number"
+            ? productData.height
+            : typeof productData.height === "string" && productData.height
+            ? parseFloat(productData.height)
+            : null,
+        // Handle warranty
+        warranty:
+          typeof productData.warranty === "number"
+            ? productData.warranty
+            : typeof productData.warranty === "string" && productData.warranty
+            ? parseInt(productData.warranty)
+            : null,
         // Properly handle product type fields
         hsn: productData.hsn || "",
         tax: productData.tax || "18",
         type: productData.productType || "physical", // snake_case and proper field name
-        return_policy: productData.returnPolicy || "7", // snake_case
+        return_policy:
+          productData.returnPolicy || productData.return_policy || "7", // snake_case
         // Set the images
         image_url: imageUrl,
         images: JSON.stringify(imagesArray),
       };
+
+      // Validate numeric fields
+      if (draftProductData.weight !== null && isNaN(draftProductData.weight)) {
+        throw new Error("Weight must be a valid number");
+      }
+      if (draftProductData.length !== null && isNaN(draftProductData.length)) {
+        throw new Error("Length must be a valid number");
+      }
+      if (draftProductData.width !== null && isNaN(draftProductData.width)) {
+        throw new Error("Width must be a valid number");
+      }
+      if (draftProductData.height !== null && isNaN(draftProductData.height)) {
+        throw new Error("Height must be a valid number");
+      }
+      if (
+        draftProductData.warranty !== null &&
+        isNaN(draftProductData.warranty)
+      ) {
+        throw new Error("Warranty must be a valid number");
+      }
 
       console.log(
         "Creating draft product with data:",
@@ -3485,8 +3572,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         const { productData, variants, deletedVariantIds } = req.body;
 
-        // Process productData for update to ensure proper handling of gstRate
+        // Process productData for update to ensure proper handling of gstRate and new fields
         let processedProductData = { ...productData };
+
+        // Process numeric fields for dimensions
+        const dimensionFields = ["height", "width", "weight", "length"];
+        dimensionFields.forEach((field) => {
+          if (processedProductData[field] !== undefined) {
+            processedProductData[field] =
+              typeof processedProductData[field] === "string"
+                ? parseFloat(processedProductData[field]) || null
+                : Number(processedProductData[field]) || null;
+          }
+        });
+
+        // Process warranty and return policy
+        if (processedProductData.warranty !== undefined) {
+          processedProductData.warranty = processedProductData.warranty || null;
+        }
+        if (processedProductData.returnPolicy !== undefined) {
+          processedProductData.returnPolicy =
+            processedProductData.returnPolicy || null;
+        }
 
         // Log the subcategoryId specifically for debugging
         if (productData) {
@@ -3889,11 +3996,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Allow both admin and seller roles
       if (req.user.role !== "admin" && req.user.role !== "seller") {
-        return res
-          .status(403)
-          .json({
-            error: "Only sellers or administrators can delete products",
-          });
+        return res.status(403).json({
+          error: "Only sellers or administrators can delete products",
+        });
       }
 
       try {
@@ -4703,12 +4808,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Include more specific error information for debugging
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
-      res
-        .status(500)
-        .json({
-          error: "Failed to create Razorpay order",
-          details: errorMessage,
-        });
+      res.status(500).json({
+        error: "Failed to create Razorpay order",
+        details: errorMessage,
+      });
     }
   });
 
@@ -11068,11 +11171,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       if (notification.userId !== req.user.id) {
-        return res
-          .status(403)
-          .json({
-            error: "You don't have permission to access this notification",
-          });
+        return res.status(403).json({
+          error: "You don't have permission to access this notification",
+        });
       }
 
       const updatedNotification = await storage.markNotificationAsRead(id);
@@ -11110,11 +11211,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       if (notification.userId !== req.user.id) {
-        return res
-          .status(403)
-          .json({
-            error: "You don't have permission to delete this notification",
-          });
+        return res.status(403).json({
+          error: "You don't have permission to delete this notification",
+        });
       }
 
       await storage.deleteNotification(id);
@@ -11779,7 +11878,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           <div class="footer">
             <div class="footer-text">
-              <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMgAAAAyCAYAAAAZUZThAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAGwSURBVHhe7dKxTQNBFABBHDpczP6roBTHA94LSMCuhpE+2d7n9Xw8p9l+5tnNae3O/i7cg7Pf83P2uw/r8fqcJ8CfBAJEAgEigQCRQIBIIEAkECASCBAJBIgEAkQCASKBAJFAgEggQCQQIBIIEAkEiAQCRAIBIoEAkUCASCBAJBAgEggQCQSIBAJEAgEigQCRQIBIIEAkECASCBAJBIgEAkQCASKBAJFAgEggQCQQIBIIEAkEiAQCRAIBIoEAkUCASCBAJBAgEggQCQSIBAJEAgEigQCRQIBIIEAkECASCBAJBIgEAkQCASKBAJFAgEggQCQQIBIIEAkEiAQCRAIBIoEAkUCASCBAJBAgEggQCQSIBAJEAgEigQCRQIBIIEAkECASCBAJBIgEAkQCASKBAJFAgEggQCQQIBIIEAkEiAQCRAIBIoEAkUCASCBAJBAgEggQCQSIBAJEAgEigQCRQIBIIEAkECASCBAJBIgEAkQCASKBAJFAgEggQCQQIBIIEAkEiAQCRAIBIoEAkUCASCBAJBAgEggQCQSIBAJE1+MKN/zmF1XgAAAAAElFTkSuQmCC" alt="Flipkart" width="100">
+              <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMgAAAAyCAYAAAAZUZThAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAGwSURBVHhe7dKxTQNBFABBHDpczP6roBTHA94LSMCuhpE+2d7n9Xw8p9l+5tnNae3O/i7cg7Pf83P2uw/r8fqcJ8CfBAJEAgEigQCRQIBIIEAkECASCBAJBIgEAkQCASKBAJFAgEggQCQQIBIIEAkEiAQCRAIBIoEAkUCASCBAJBAgEggQCQSIBAJEAgEigQCRQIBIIEAkECASCBAJBIgEAkQCASKBAJFAgEggQCQQIBIIEAkEiAQCRAIBIoEAkUCASCBAJBAgEggQCQSIBAJE1+MKN/zmF1XgAAAAAElFTkSuQmCC" alt="Flipkart" width="100">
               <span style="display: block; text-align: center; margin-top: 5px;">Thank You for shopping with us!</span>
             </div>
           </div>

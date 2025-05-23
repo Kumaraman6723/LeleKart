@@ -8,6 +8,13 @@
       "when": 1747726344073,
       "tag": "0000_groovy_blue_blade",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1747823650937,
+      "tag": "0001_gifted_blink",
+      "breakpoints": true
     }
   ]
 }
