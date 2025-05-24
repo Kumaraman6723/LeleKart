@@ -933,33 +933,48 @@ export default function SellerProductsPage() {
         </Card>
       </div>
 
-      <div className="mt-2 border-t pt-4 flex items-center justify-between">
-        <div className="text-sm text-muted-foreground">
-          Showing {Math.min(products.length, itemsPerPage)} of{" "}
-          {data?.total || 0} products
+      {/* Pagination */}
+      <div className="flex items-center justify-between py-4">
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-gray-500">
+            Showing {products.length} of {pagination.total} products
+          </span>
+          <Select
+            value={String(itemsPerPage)}
+            onValueChange={(value) => {
+              setItemsPerPage(Number(value));
+              setCurrentPage(1); // Reset to first page when changing page size
+            }}
+          >
+            <SelectTrigger className="h-8 w-[70px]">
+              <SelectValue placeholder="10" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="10">10</SelectItem>
+              <SelectItem value="100">100</SelectItem>
+              <SelectItem value="500">500</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
-
-        {data?.totalPages > 1 && (
+        {pagination.totalPages > 1 && (
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
               size="icon"
-              onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+              onClick={() => setCurrentPage(currentPage - 1)}
               disabled={currentPage === 1}
               aria-label="Previous page"
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
             <span className="text-sm text-muted-foreground">
-              Page {currentPage} of {data.totalPages}
+              Page {currentPage} of {pagination.totalPages}
             </span>
             <Button
               variant="outline"
               size="icon"
-              onClick={() =>
-                setCurrentPage((prev) => Math.min(data.totalPages, prev + 1))
-              }
-              disabled={currentPage === data.totalPages}
+              onClick={() => setCurrentPage(currentPage + 1)}
+              disabled={currentPage === pagination.totalPages}
               aria-label="Next page"
             >
               <ChevronRight className="h-4 w-4" />

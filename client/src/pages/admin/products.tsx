@@ -2453,6 +2453,22 @@ function AdminProductsContent({
                   Showing {filteredProducts.length} of {pagination.total}{" "}
                   products
                 </span>
+                <Select
+                  value={String(itemsPerPage)}
+                  onValueChange={(value) => {
+                    setItemsPerPage(Number(value));
+                    setCurrentPage(1); // Reset to first page when changing page size
+                  }}
+                >
+                  <SelectTrigger className="h-8 w-[70px]">
+                    <SelectValue placeholder="10" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">10</SelectItem>
+                    <SelectItem value="100">100</SelectItem>
+                    <SelectItem value="500">500</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               {pagination.totalPages > 1 && (
                 <div className="flex items-center gap-2">
