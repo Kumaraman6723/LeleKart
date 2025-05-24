@@ -593,6 +593,7 @@ export default function AddProductPage() {
 
   // Variant handling methods - Firefox safe implementation
   const handleAddVariant = () => {
+    setVariantImages([]);
     // Prevent adding a new variant if one is already being edited
     if (selectedVariant !== null && isAddingVariant) {
       toast({
@@ -603,6 +604,8 @@ export default function AddProductPage() {
       });
       return;
     }
+
+    // Clear any existing variant images first
 
     // Get safe values from the form - Firefox has issues with undefined/null conversions
     const formSku = form.getValues("sku") || "";
@@ -630,13 +633,12 @@ export default function AddProductPage() {
       price: safePrice,
       mrp: safeMrp,
       stock: safeStock,
-      images: [],
+      images: [], // Initialize with empty images array
     };
 
     // Update state with functional updates to prevent race conditions
     setSelectedVariant(newVariant);
     setIsAddingVariant(true);
-    setVariantImages([]);
 
     console.log("Added new variant for editing with temporary ID:", tempId);
   };
@@ -665,6 +667,9 @@ export default function AddProductPage() {
         description: "Please enter a valid price greater than zero",
         variant: "destructive",
       });
+      // Keep the current variant state and images
+      setSelectedVariant(variant);
+      setIsAddingVariant(true);
       return;
     }
 
@@ -680,6 +685,9 @@ export default function AddProductPage() {
         description: "Please enter a valid stock quantity (zero or greater)",
         variant: "destructive",
       });
+      // Keep the current variant state and images
+      setSelectedVariant(variant);
+      setIsAddingVariant(true);
       return;
     }
 
@@ -713,12 +721,38 @@ export default function AddProductPage() {
       description: `New variant has been added successfully (${totalVariants} total variants)`,
     });
 
-    // Reset the variant editing state to close the form
-    setSelectedVariant(null);
-    setIsAddingVariant(false);
-    setVariantImages([]);
+    // Create a new empty variant for the next entry
+    const formSku = form.getValues("sku") || "";
+    const variantsCount = variants.length + draftVariants.length + 1; // +1 for the one we just added
+    const safePrice =
+      parseFloat(form.getValues("price")?.toString() || "0") || 0;
+    const safeMrp = parseFloat(form.getValues("mrp")?.toString() || "0") || 0;
+    const safeStock = parseInt(form.getValues("stock")?.toString() || "0") || 0;
 
-    console.log("Added variant. Click 'Add More Variant' to add another one.");
+    // Create a unique timestamp ID for the new variant
+    const uniqueId = Date.now();
+    const tempId = -Math.floor(Math.random() * 1000000);
+
+    // Initialize a new empty variant with empty images array
+    const newVariant: ProductVariant = {
+      id: tempId,
+      sku: formSku
+        ? `${formSku}-${variantsCount + 1}`
+        : `SKU-${uniqueId}-${variantsCount + 1}`,
+      color: "",
+      size: "",
+      price: safePrice,
+      mrp: safeMrp,
+      stock: safeStock,
+      images: [], // Ensure images array is empty
+    };
+
+    // Set the new variant as selected and keep the form open
+    setSelectedVariant(newVariant);
+    setIsAddingVariant(true);
+    setVariantImages([]); // Clear variant images state
+
+    console.log("Added variant. New empty form created for next variant.");
   };
 
   // Traditional save variant (for edit modal)
@@ -804,6 +838,7 @@ export default function AddProductPage() {
     // Set the selected variant and open the delete confirmation dialog
     setSelectedVariant(variant);
     setIsDeletingVariant(true);
+    setVariantImages([]); // Clear variant images when opening delete dialog
   };
 
   // Upload handler for variant images
@@ -2647,34 +2682,106 @@ export default function AddProductPage() {
                   )}
 
                 {/* Media Picker for variant images */}
-                <MultiMediaPicker
-                  onSelect={(urls) => {
-                    // Ensure images is properly initialized as an array
-                    const currentImages = Array.isArray(selectedVariant.images)
-                      ? selectedVariant.images
-                      : [];
+                <div className="flex gap-4 mb-4">
+                  <div className="flex-1">
+                    <label className="block text-sm font-medium mb-2">
+                      Upload Image
+                    </label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="w-full p-2 border rounded-md"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          // Create a URL for the selected file
+                          const imageUrl = URL.createObjectURL(file);
+                          const currentImages = Array.isArray(
+                            selectedVariant.images
+                          )
+                            ? selectedVariant.images
+                            : [];
 
-                    // Update the variant with the new images
-                    setSelectedVariant({
-                      ...selectedVariant,
-                      images: [...currentImages, ...urls],
-                    });
+                          setSelectedVariant({
+                            ...selectedVariant,
+                            images: [...currentImages, imageUrl],
+                          });
 
-                    toast({
-                      title: "Images added",
-                      description: `Added ${urls.length} image${
-                        urls.length === 1 ? "" : "s"
-                      } to this variant.`,
-                    });
-                  }}
-                  buttonLabel="Add Variant Images"
-                  maxImages={8}
-                />
+                          toast({
+                            title: "Image uploaded",
+                            description:
+                              "Image has been added to this variant.",
+                          });
+                        }
+                      }}
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <label className="block text-sm font-medium mb-2">
+                      Image URL
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="url"
+                        placeholder="Enter image URL"
+                        className="flex-1 p-2 border rounded-md"
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            const url = e.currentTarget.value;
+                            if (url) {
+                              const currentImages = Array.isArray(
+                                selectedVariant.images
+                              )
+                                ? selectedVariant.images
+                                : [];
 
-                <div className="mt-2 text-xs text-amber-600 flex items-center">
-                  <InfoIcon className="h-3 w-3 mr-1 flex-shrink-0" />
-                  Variant-specific images help customers see color differences
-                  clearly.
+                              setSelectedVariant({
+                                ...selectedVariant,
+                                images: [...currentImages, url],
+                              });
+
+                              toast({
+                                title: "Image URL added",
+                                description:
+                                  "Image URL has been added to this variant.",
+                              });
+                              e.currentTarget.value = "";
+                            }
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+                        onClick={(e) => {
+                          const input = e.currentTarget
+                            .previousElementSibling as HTMLInputElement;
+                          const url = input.value;
+                          if (url) {
+                            const currentImages = Array.isArray(
+                              selectedVariant.images
+                            )
+                              ? selectedVariant.images
+                              : [];
+
+                            setSelectedVariant({
+                              ...selectedVariant,
+                              images: [...currentImages, url],
+                            });
+
+                            toast({
+                              title: "Image URL added",
+                              description:
+                                "Image URL has been added to this variant.",
+                            });
+                            input.value = "";
+                          }
+                        }}
+                      >
+                        Add
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -2749,7 +2856,10 @@ export default function AddProductPage() {
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => setIsDeletingVariant(false)}
+              onClick={() => {
+                setIsDeletingVariant(false);
+                setVariantImages([]); // Clear variant images when canceling delete
+              }}
             >
               Cancel
             </Button>
@@ -2766,6 +2876,9 @@ export default function AddProductPage() {
                   setDraftVariants((drafts) =>
                     drafts.filter((d) => d.id !== selectedVariant.id)
                   );
+
+                  // Clear variant images
+                  setVariantImages([]);
 
                   toast({
                     title: "Variant deleted",

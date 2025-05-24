@@ -321,7 +321,10 @@ export function MultiVariantTable({
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={onAddVariant}
+                  onClick={() => {
+                    setVariantImages([]); // Reset images array
+                    onAddVariant();
+                  }}
                   className="w-full text-blue-600 hover:text-blue-800 hover:bg-blue-50 gap-1"
                   disabled={newVariantExists} // Disable if already editing a variant
                 >
