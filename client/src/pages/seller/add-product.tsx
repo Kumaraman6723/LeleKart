@@ -142,7 +142,7 @@ const productSchema = z.object({
       }
     )
     .optional(),
-  sku: z.string().min(2, "SKU is required"),
+  sku: z.string().optional(), // Made SKU optional
   category: z.string().min(1, "Please select a category"),
   subcategory: z.string().optional(),
   subcategoryId: z
@@ -155,7 +155,7 @@ const productSchema = z.object({
     ])
     .optional()
     .nullable(),
-  brand: z.string().min(2, "Brand name is required"),
+  brand: z.string().optional().nullable(),
   stock: z.coerce
     .number()
     .min(0, "Stock cannot be negative")
@@ -167,6 +167,45 @@ const productSchema = z.object({
   color: z.string().optional().nullable(),
   size: z.string().optional().nullable(),
 });
+
+// Helper function to generate SKU
+const generateSKU = async (name: string, category: string): Promise<string> => {
+  // Get first 3 letters of name and category
+  const namePrefix = name.substring(0, 3).toUpperCase();
+  const categoryPrefix = category.substring(0, 3).toUpperCase();
+
+  // Add timestamp with more precision (milliseconds)
+  const timestamp = Date.now().toString();
+
+  // Generate a more unique random string using crypto
+  const randomBytes = new Uint8Array(4);
+  crypto.getRandomValues(randomBytes);
+  const randomHex = Array.from(randomBytes)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("")
+    .substring(0, 6);
+
+  // Create the SKU
+  const sku = `${namePrefix}-${categoryPrefix}-${timestamp}-${randomHex}`;
+
+  try {
+    // Check if SKU already exists in the database
+    const response = await fetch(`/api/products/check-sku?sku=${sku}`);
+    const { exists } = await response.json();
+
+    if (exists) {
+      // If SKU exists, generate a new one recursively
+      return generateSKU(name, category);
+    }
+
+    return sku;
+  } catch (error) {
+    console.error("Error checking SKU uniqueness:", error);
+    // If there's an error checking uniqueness, add more entropy to ensure uniqueness
+    const extraRandom = Math.random().toString(36).substring(2, 8);
+    return `${sku}-${extraRandom}`;
+  }
+};
 
 // Use the ProductVariant type imported from variant-form.tsx
 
@@ -243,7 +282,7 @@ export default function AddProductPage() {
       mrp: "",
       purchasePrice: "",
       gstRate: "",
-      sku: "",
+      sku: "", // Initialize as empty string
       category: "",
       subcategory: "",
       subcategoryId: null,
@@ -251,11 +290,11 @@ export default function AddProductPage() {
       color: "",
       size: "",
       stock: 0,
-      weight: "",
-      height: "",
-      width: "",
-      length: "",
-      warranty: "",
+      weight: null,
+      height: null,
+      width: null,
+      length: null,
+      warranty: null,
       hsn: "",
       tax: "18",
       productType: "physical",
@@ -921,135 +960,157 @@ export default function AddProductPage() {
   };
 
   // Form submission handler
-  const onSubmit = (data: z.infer<typeof productSchema>) => {
+  const onSubmit = async (data: z.infer<typeof productSchema>) => {
     setIsSubmitting(true);
 
-    // Create the data structure expected by the server
-    const productData = {
-      name: data.name,
-      description: data.description,
-      specifications: data.specifications,
-      price: parseInt(data.price),
-      mrp: parseInt(data.mrp),
-      purchasePrice: data.purchasePrice
-        ? parseFloat(data.purchasePrice)
-        : undefined,
-      gstRate:
-        data.gstRate ||
-        data.tax ||
-        getSelectedCategoryGstRate().toString() ||
-        "0",
-      category: data.category,
-      subcategory:
-        data.subcategory === "none" ? null : data.subcategory || null,
-      subcategoryId: data.subcategoryId || null,
-      brand: data.brand,
-      color: data.color,
-      size: data.size,
-      imageUrl:
-        uploadedImages[0] || "https://placehold.co/600x400?text=Product+Image",
-      images: JSON.stringify(uploadedImages),
-      stock: parseInt(data.stock),
-      weight: data.weight ? parseFloat(data.weight) : undefined,
-      height: data.height ? parseFloat(data.height) : undefined,
-      width: data.width ? parseFloat(data.width) : undefined,
-      length: data.length ? parseFloat(data.length) : undefined,
-      warranty: data.warranty ? parseInt(data.warranty) : undefined,
-      hsn: data.hsn,
-      productType: data.productType,
-      returnPolicy: isStandardReturnPolicy(data.returnPolicy)
-        ? data.returnPolicy
-        : data.customReturnPolicy,
-      variants: [...variants, ...draftVariants],
-    };
+    try {
+      // Generate SKU if not provided or empty
+      let sku = data.sku?.trim();
+      if (!sku) {
+        // Get first 3 letters of name and category
+        const namePrefix = data.name.substring(0, 3).toUpperCase();
+        const categoryPrefix = data.category.substring(0, 3).toUpperCase();
 
-    if (uploadedImages.length === 0) {
-      toast({
-        title: "Images required",
-        description: "Please upload at least one product image",
-        variant: "destructive",
-      });
-      return;
-    }
+        // Add timestamp with more precision (milliseconds)
+        const timestamp = Date.now().toString();
 
-    // Check for required fields explicitly
-    if (!data.name || !data.description || !data.price || !data.category) {
-      toast({
-        title: "Missing required fields",
-        description:
-          "Please fill in all required fields (name, description, price, category)",
-        variant: "destructive",
-      });
-      return;
-    }
+        // Generate a random 4-digit number
+        const randomNum = Math.floor(1000 + Math.random() * 9000);
 
-    // First check if we're currently editing a variant that hasn't been saved
-    if (selectedVariant && isAddingVariant) {
-      toast({
-        title: "Unsaved variant",
-        description:
-          "Please save or cancel the current variant before submitting the product",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Combine variants without duplicates
-    const combinedVariants = [...variants];
-
-    // Add draft variants that don't already exist in the main variants array
-    draftVariants.forEach((draftVariant) => {
-      const exists = combinedVariants.some((v) => v.id === draftVariant.id);
-      if (!exists) {
-        combinedVariants.push(draftVariant);
+        // Create the SKU
+        sku = `${namePrefix}-${categoryPrefix}-${timestamp}-${randomNum}`;
       }
-    });
 
-    console.log(`Preparing ${combinedVariants.length} variants for submission`);
-
-    // Process variants to ensure proper format for server
-    const processedVariants = combinedVariants.map((variant) => {
-      // Clean up variant data
-      const { id, createdAt, updatedAt, ...cleanVariant } = variant;
-
-      return {
-        // Keep ID if it exists for traceability (server will handle this)
-        id,
-        ...cleanVariant,
-        // Format images correctly
-        images: Array.isArray(variant.images) ? variant.images : [],
-        // Ensure numeric fields are numbers
-        price:
-          typeof variant.price === "number"
-            ? variant.price
-            : parseFloat(String(variant.price)),
-        stock:
-          typeof variant.stock === "number"
-            ? variant.stock
-            : parseInt(String(variant.stock)),
-        mrp:
-          variant.mrp !== undefined && variant.mrp !== null
-            ? typeof variant.mrp === "number"
-              ? variant.mrp
-              : parseFloat(String(variant.mrp))
-            : null,
+      // Create the data structure expected by the server
+      const productData = {
+        name: data.name,
+        description: data.description,
+        specifications: data.specifications,
+        price: parseInt(data.price),
+        mrp: parseInt(data.mrp),
+        purchasePrice: data.purchasePrice
+          ? parseFloat(data.purchasePrice)
+          : undefined,
+        gstRate: data.gstRate || getSelectedCategoryGstRate().toString() || "0",
+        category: data.category,
+        subcategory:
+          data.subcategory === "none" ? null : data.subcategory || null,
+        subcategoryId: data.subcategoryId || null,
+        brand: data.brand,
+        color: data.color,
+        size: data.size,
+        imageUrl:
+          uploadedImages[0] ||
+          "https://placehold.co/600x400?text=Product+Image",
+        images: JSON.stringify(uploadedImages),
+        stock: parseInt(data.stock),
+        weight: data.weight ? parseFloat(data.weight) : undefined,
+        height: data.height ? parseFloat(data.height) : undefined,
+        width: data.width ? parseFloat(data.width) : undefined,
+        length: data.length ? parseFloat(data.length) : undefined,
+        sku: sku,
+        variants: [...variants, ...draftVariants],
       };
-    });
 
-    console.log("Submitting product data:", productData);
-    console.log("With variants:", processedVariants.length);
+      if (uploadedImages.length === 0) {
+        toast({
+          title: "Images required",
+          description: "Please upload at least one product image",
+          variant: "destructive",
+        });
+        return;
+      }
 
-    // Reset the variant state to prevent any duplicate submissions
-    setSelectedVariant(null);
-    setIsAddingVariant(false);
+      // Check for required fields explicitly
+      if (!data.name || !data.description || !data.price || !data.category) {
+        toast({
+          title: "Missing required fields",
+          description:
+            "Please fill in all required fields (name, description, price, category)",
+          variant: "destructive",
+        });
+        return;
+      }
 
-    // Create the data structure expected by the server
-    const requestData = {
-      productData: productData,
-      variants: processedVariants,
-    };
+      // First check if we're currently editing a variant that hasn't been saved
+      if (selectedVariant && isAddingVariant) {
+        toast({
+          title: "Unsaved variant",
+          description:
+            "Please save or cancel the current variant before submitting the product",
+          variant: "destructive",
+        });
+        return;
+      }
 
-    createProductMutation.mutate(requestData);
+      // Combine variants without duplicates
+      const combinedVariants = [...variants];
+
+      // Add draft variants that don't already exist in the main variants array
+      draftVariants.forEach((draftVariant) => {
+        const exists = combinedVariants.some((v) => v.id === draftVariant.id);
+        if (!exists) {
+          combinedVariants.push(draftVariant);
+        }
+      });
+
+      console.log(
+        `Preparing ${combinedVariants.length} variants for submission`
+      );
+
+      // Process variants to ensure proper format for server
+      const processedVariants = combinedVariants.map((variant) => {
+        // Clean up variant data
+        const { id, createdAt, updatedAt, ...cleanVariant } = variant;
+
+        return {
+          // Keep ID if it exists for traceability (server will handle this)
+          id,
+          ...cleanVariant,
+          // Format images correctly
+          images: Array.isArray(variant.images) ? variant.images : [],
+          // Ensure numeric fields are numbers
+          price:
+            typeof variant.price === "number"
+              ? variant.price
+              : parseFloat(String(variant.price)),
+          stock:
+            typeof variant.stock === "number"
+              ? variant.stock
+              : parseInt(String(variant.stock)),
+          mrp:
+            variant.mrp !== undefined && variant.mrp !== null
+              ? typeof variant.mrp === "number"
+                ? variant.mrp
+                : parseFloat(String(variant.mrp))
+              : null,
+        };
+      });
+
+      console.log("Submitting product data:", productData);
+      console.log("With variants:", processedVariants.length);
+
+      // Reset the variant state to prevent any duplicate submissions
+      setSelectedVariant(null);
+      setIsAddingVariant(false);
+
+      // Create the data structure expected by the server
+      const requestData = {
+        productData: productData,
+        variants: processedVariants,
+      };
+
+      createProductMutation.mutate(requestData);
+    } catch (error) {
+      console.error("Error in form submission:", error);
+      toast({
+        title: "Error",
+        description:
+          "There was an error submitting the form. Please try again.",
+        variant: "destructive",
+      });
+      setIsSubmitting(false);
+    }
   };
 
   // Save as draft handler - less strict validation
@@ -1208,9 +1269,7 @@ export default function AddProductPage() {
                       name="brand"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>
-                            Brand <span className="text-red-500">*</span>
-                          </FormLabel>
+                          <FormLabel>Brand</FormLabel>
                           <FormControl>
                             <Input
                               placeholder="e.g. Samsung, Apple, Sony"
@@ -2046,17 +2105,22 @@ export default function AddProductPage() {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>
-                            SKU (Stock Keeping Unit){" "}
-                            <span className="text-red-500">*</span>
+                            SKU (Stock Keeping Unit)
+                            <span className="text-muted-foreground text-xs ml-1">
+                              (Optional - will be auto-generated if left empty)
+                            </span>
                           </FormLabel>
                           <FormControl>
                             <Input
-                              placeholder="e.g. SM-S22U-256-BLK"
+                              placeholder="e.g. SM-S22U-256-BLK (will be auto-generated if left empty)"
                               {...field}
+                              value={field.value || ""} // Ensure value is never null
                             />
                           </FormControl>
                           <FormDescription>
-                            Unique identifier for your product
+                            Unique identifier for your product. If left empty, a
+                            SKU will be automatically generated using product
+                            name and category.
                           </FormDescription>
                           <FormMessage />
                         </FormItem>
