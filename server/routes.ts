@@ -11574,15 +11574,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
             gstRate > 0 ? totalPrice / (1 + gstRate / 100) : totalPrice;
           const taxAmount = totalPrice - basePrice;
 
-          // Normalize states by trimming whitespace, converting to lowercase, and removing special characters
-          const normalizedBuyerState = String(buyerState || "")
-            .trim()
-            .toLowerCase()
-            .replace(/[^a-z]/g, "");
-          const normalizedSellerState = (sellerState || "")
-            .trim()
-            .toLowerCase()
-            .replace(/[^a-z]/g, "");
+          // Helper function to normalize state names
+          const normalizeState = (state: string): string => {
+            if (!state) return "";
+
+            // Convert to lowercase and remove special characters
+            const normalized = state
+              .trim()
+              .toLowerCase()
+              .replace(/[^a-z]/g, "");
+
+            // Map of common state abbreviations to full names
+            const stateMap: { [key: string]: string } = {
+              hp: "himachalpradesh",
+              mp: "madhyapradesh",
+              up: "uttarpradesh",
+              ap: "andhrapradesh",
+              tn: "tamilnadu",
+              ka: "karnataka",
+              mh: "maharashtra",
+              gj: "gujarat",
+              rj: "rajasthan",
+              wb: "westbengal",
+              pb: "punjab",
+              hr: "haryana",
+              kl: "kerala",
+              or: "odisha",
+              br: "bihar",
+              jh: "jharkhand",
+              ct: "chhattisgarh",
+              ga: "goa",
+              mn: "manipur",
+              ml: "meghalaya",
+              tr: "tripura",
+              ar: "arunachalpradesh",
+              nl: "nagaland",
+              mz: "mizoram",
+              sk: "sikkim",
+              dl: "delhi",
+              ch: "chandigarh",
+              py: "pondicherry",
+              an: "andamanandnicobar",
+              dn: "dadraandnagarhaveli",
+              dd: "damananddiu",
+              ld: "lakshadweep",
+              jk: "jammukashmir",
+              la: "ladakh",
+              ut: "uttarakhand",
+              ts: "telangana",
+            };
+
+            // Check if the normalized state is an abbreviation
+            return stateMap[normalized] || normalized;
+          };
+
+          // Normalize both buyer and seller states
+          const normalizedBuyerState = normalizeState(String(buyerState || ""));
+          const normalizedSellerState = normalizeState(sellerState || "");
 
           // If buyer and seller are from the same state, split GST into CGST and SGST
           if (
