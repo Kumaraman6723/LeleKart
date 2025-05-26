@@ -79,7 +79,11 @@ const addressFormSchema = z.object({
   address: z.string().min(1, "Address is required"),
   city: z.string().min(1, "City is required"),
   state: z.string().min(1, "State is required"),
-  pincode: z.string().min(6, "Pincode must be at least 6 characters"),
+  pincode: z
+    .string()
+    .min(6, "Pincode must be exactly 6 digits")
+    .max(6, "Pincode must be exactly 6 digits")
+    .regex(/^\d{6}$/, "Pincode must contain exactly 6 digits"),
   phone: z.string().min(10, "Phone number must be at least 10 characters"),
   isDefault: z.boolean().default(false),
   addressType: z.enum(["billing", "shipping", "both"]).default("both"),
@@ -165,12 +169,15 @@ const AddressForm: React.FC<AddressFormProps> = ({
             name="pincode"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Pincode</FormLabel>
+                <FormLabel>
+                  Pincode <span className="text-red-500">*</span>
+                </FormLabel>
                 <FormControl>
-                  <Input 
-                    placeholder="400001" 
-                    {...field} 
+                  <Input
+                    placeholder="400001"
+                    {...field}
                     maxLength={6}
+                    required
                     onKeyPress={(e) => {
                       // Allow only digits
                       if (!/[0-9]/.test(e.key)) {
@@ -179,40 +186,70 @@ const AddressForm: React.FC<AddressFormProps> = ({
                     }}
                     onChange={(e) => {
                       // Only allow digits in the field
-                      const value = e.target.value.replace(/[^0-9]/g, '');
+                      const value = e.target.value.replace(/[^0-9]/g, "");
                       e.target.value = value;
-                      
+
                       field.onChange(e);
                       // Auto-populate city and state when pincode has 6 digits
                       const pincode = value;
-                      console.log("Address Management Pincode changed:", pincode);
+                      console.log(
+                        "Address Management Pincode changed:",
+                        pincode
+                      );
                       if (pincode && pincode.length === 6) {
                         // Fetch location data based on pincode
-                        console.log("Fetching data for address mgmt pincode:", pincode);
+                        console.log(
+                          "Fetching data for address mgmt pincode:",
+                          pincode
+                        );
                         fetch(`/api/pincode/${pincode}`)
-                          .then(response => {
-                            console.log("Address Management Pincode API response:", response.status);
+                          .then((response) => {
+                            console.log(
+                              "Address Management Pincode API response:",
+                              response.status
+                            );
                             if (!response.ok) {
-                              throw new Error('PIN code not found');
+                              throw new Error("PIN code not found");
                             }
                             return response.json();
                           })
-                          .then(data => {
-                            console.log("Address Management Pincode data received:", data);
+                          .then((data) => {
+                            console.log(
+                              "Address Management Pincode data received:",
+                              data
+                            );
                             // Update the state and city fields
-                            console.log("Updating address mgmt form fields with pincode data:", data.state, data.district);
-                            form.setValue('state', data.state || "", { shouldValidate: true });
-                            form.setValue('city', data.district || "", { shouldValidate: true });
-                            console.log("Address management form fields updated:", form.getValues('state'), form.getValues('city'));
+                            console.log(
+                              "Updating address mgmt form fields with pincode data:",
+                              data.state,
+                              data.district
+                            );
+                            form.setValue("state", data.state || "", {
+                              shouldValidate: true,
+                            });
+                            form.setValue("city", data.district || "", {
+                              shouldValidate: true,
+                            });
+                            console.log(
+                              "Address management form fields updated:",
+                              form.getValues("state"),
+                              form.getValues("city")
+                            );
                           })
-                          .catch(error => {
-                            console.error('Error fetching location data:', error);
+                          .catch((error) => {
+                            console.error(
+                              "Error fetching location data:",
+                              error
+                            );
                             // Don't show error toast as this is optional functionality
                           });
                       }
                     }}
                   />
                 </FormControl>
+                <FormDescription className="text-xs">
+                  Enter a 6-digit pincode
+                </FormDescription>
                 <FormMessage />
               </FormItem>
             )}
@@ -227,11 +264,11 @@ const AddressForm: React.FC<AddressFormProps> = ({
               <FormItem>
                 <FormLabel>City</FormLabel>
                 <FormControl>
-                  <Input 
-                    placeholder="Mumbai" 
-                    {...field} 
-                    readOnly 
-                    className="bg-gray-50 cursor-not-allowed" 
+                  <Input
+                    placeholder="Mumbai"
+                    {...field}
+                    readOnly
+                    className="bg-gray-50 cursor-not-allowed"
                   />
                 </FormControl>
                 <FormDescription className="text-xs">
@@ -248,11 +285,11 @@ const AddressForm: React.FC<AddressFormProps> = ({
               <FormItem>
                 <FormLabel>State</FormLabel>
                 <FormControl>
-                  <Input 
-                    placeholder="Maharashtra" 
-                    {...field} 
-                    readOnly 
-                    className="bg-gray-50 cursor-not-allowed" 
+                  <Input
+                    placeholder="Maharashtra"
+                    {...field}
+                    readOnly
+                    className="bg-gray-50 cursor-not-allowed"
                   />
                 </FormControl>
                 <FormDescription className="text-xs">
@@ -263,7 +300,7 @@ const AddressForm: React.FC<AddressFormProps> = ({
             )}
           />
         </div>
-        
+
         <div className="grid grid-cols-1 gap-4">
           <FormField
             control={form.control}
@@ -272,9 +309,9 @@ const AddressForm: React.FC<AddressFormProps> = ({
               <FormItem>
                 <FormLabel>Phone Number</FormLabel>
                 <FormControl>
-                  <Input 
-                    placeholder="9876543210" 
-                    {...field} 
+                  <Input
+                    placeholder="9876543210"
+                    {...field}
                     maxLength={10}
                     onKeyPress={(e) => {
                       // Allow only digits
@@ -284,7 +321,7 @@ const AddressForm: React.FC<AddressFormProps> = ({
                     }}
                     onChange={(e) => {
                       // Only allow digits in the field
-                      const value = e.target.value.replace(/[^0-9]/g, '');
+                      const value = e.target.value.replace(/[^0-9]/g, "");
                       e.target.value = value;
                       field.onChange(value);
                     }}
@@ -305,10 +342,7 @@ const AddressForm: React.FC<AddressFormProps> = ({
           render={({ field }) => (
             <FormItem>
               <FormLabel>Address Type</FormLabel>
-              <Select 
-                onValueChange={field.onChange} 
-                defaultValue={field.value}
-              >
+              <Select onValueChange={field.onChange} defaultValue={field.value}>
                 <FormControl>
                   <SelectTrigger>
                     <SelectValue placeholder="Select address type" />
@@ -382,22 +416,22 @@ const AddressCard: React.FC<{
   onSetDefault: (id: number) => void;
   onSetDefaultBilling?: (id: number) => void;
   onSetDefaultShipping?: (id: number) => void;
-}> = ({ 
-  address, 
-  onEdit, 
-  onDelete, 
+}> = ({
+  address,
+  onEdit,
+  onDelete,
   onSetDefault,
   onSetDefaultBilling,
-  onSetDefaultShipping 
+  onSetDefaultShipping,
 }) => {
   // Function to render address type badge
   const renderAddressType = () => {
     switch (address.addressType) {
-      case 'billing':
+      case "billing":
         return <Badge className="bg-blue-500 mr-2">Billing</Badge>;
-      case 'shipping':
+      case "shipping":
         return <Badge className="bg-green-500 mr-2">Shipping</Badge>;
-      case 'both':
+      case "both":
         return <Badge className="bg-purple-500 mr-2">Billing & Shipping</Badge>;
       default:
         return null;
@@ -488,30 +522,34 @@ const AddressCard: React.FC<{
           </AlertDialog>
         </div>
         <div className="flex flex-wrap gap-2 w-full">
-          {(address.addressType === 'shipping' || address.addressType === 'both') && 
-            !address.isDefaultShipping && onSetDefaultShipping && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onSetDefaultShipping(address.id)}
-              className="flex items-center"
-            >
-              <Truck className="h-4 w-4 mr-1" />
-              Set as Default Shipping
-            </Button>
-          )}
-          {(address.addressType === 'billing' || address.addressType === 'both') && 
-            !address.isDefaultBilling && onSetDefaultBilling && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onSetDefaultBilling(address.id)}
-              className="flex items-center"
-            >
-              <CreditCard className="h-4 w-4 mr-1" />
-              Set as Default Billing
-            </Button>
-          )}
+          {(address.addressType === "shipping" ||
+            address.addressType === "both") &&
+            !address.isDefaultShipping &&
+            onSetDefaultShipping && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onSetDefaultShipping(address.id)}
+                className="flex items-center"
+              >
+                <Truck className="h-4 w-4 mr-1" />
+                Set as Default Shipping
+              </Button>
+            )}
+          {(address.addressType === "billing" ||
+            address.addressType === "both") &&
+            !address.isDefaultBilling &&
+            onSetDefaultBilling && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onSetDefaultBilling(address.id)}
+                className="flex items-center"
+              >
+                <CreditCard className="h-4 w-4 mr-1" />
+                Set as Default Billing
+              </Button>
+            )}
           {!address.isDefault && (
             <Button
               variant="ghost"
@@ -612,7 +650,9 @@ const AddressManagement: React.FC = () => {
       const response = await apiRequest("DELETE", `/api/addresses/${id}`);
       // If the response is not ok, try to extract error message from JSON
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: "Failed to delete address" }));
+        const errorData = await response
+          .json()
+          .catch(() => ({ error: "Failed to delete address" }));
         throw new Error(errorData.error || "Failed to delete address");
       }
     },
@@ -625,10 +665,11 @@ const AddressManagement: React.FC = () => {
     },
     onError: (error: Error) => {
       // Use the specific error message if available
-      const errorMessage = error.message && error.message !== "Failed to delete address" 
-        ? error.message 
-        : "Failed to delete address. Please try again.";
-        
+      const errorMessage =
+        error.message && error.message !== "Failed to delete address"
+          ? error.message
+          : "Failed to delete address. Please try again.";
+
       toast({
         title: "Unable to Delete Address",
         description: errorMessage,
@@ -790,12 +831,22 @@ const AddressManagement: React.FC = () => {
             Address Types
           </h2>
           <p className="text-sm text-slate-600 mb-2">
-            We now support separate billing and shipping addresses to provide more flexibility:
+            We now support separate billing and shipping addresses to provide
+            more flexibility:
           </p>
           <ul className="list-disc list-inside text-sm text-slate-600 space-y-1 ml-4">
-            <li><span className="font-medium">Billing Only:</span> Used for invoice and payment information</li>
-            <li><span className="font-medium">Shipping Only:</span> Used for delivery of your orders</li>
-            <li><span className="font-medium">Both:</span> Can be used for both billing and shipping purposes</li>
+            <li>
+              <span className="font-medium">Billing Only:</span> Used for
+              invoice and payment information
+            </li>
+            <li>
+              <span className="font-medium">Shipping Only:</span> Used for
+              delivery of your orders
+            </li>
+            <li>
+              <span className="font-medium">Both:</span> Can be used for both
+              billing and shipping purposes
+            </li>
           </ul>
         </div>
 
@@ -871,7 +922,7 @@ const AddressManagement: React.FC = () => {
                   pincode: selectedAddress.pincode,
                   phone: selectedAddress.phone,
                   isDefault: selectedAddress.isDefault,
-                  addressType: selectedAddress.addressType || 'both',
+                  addressType: selectedAddress.addressType || "both",
                 }}
                 onSubmit={handleUpdateAddress}
                 onCancel={() => {

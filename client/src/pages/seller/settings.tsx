@@ -502,6 +502,15 @@ export default function SellerSettingsPage() {
   };
 
   const saveAddress = async () => {
+    if (!address.pincode || address.pincode.length !== 6) {
+      toast({
+        title: "Validation Error",
+        description: "Please enter a valid 6-digit pincode",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsSavingAddress(true);
     try {
       const response = await fetch("/api/seller/settings/address", {
@@ -567,6 +576,15 @@ export default function SellerSettingsPage() {
   };
 
   const savePickupAddress = async () => {
+    if (!pickupAddress.pincode || pickupAddress.pincode.length !== 6) {
+      toast({
+        title: "Validation Error",
+        description: "Please enter a valid 6-digit pincode",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsSavingPickupAddress(true);
     try {
       const response = await fetch("/api/seller/settings/pickup-address", {
@@ -575,7 +593,7 @@ export default function SellerSettingsPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          pickupAddress, // Send the object directly, let the server handle stringification
+          pickupAddress,
         }),
       });
 
@@ -915,11 +933,14 @@ export default function SellerSettingsPage() {
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="pincode">Pincode</Label>
+                        <Label htmlFor="pincode">
+                          Pincode <span className="text-red-500">*</span>
+                        </Label>
                         <Input
                           id="pincode"
                           value={address.pincode}
                           maxLength={6}
+                          required
                           onKeyPress={(e) => {
                             // Allow only digits
                             if (!/[0-9]/.test(e.key)) {
@@ -975,6 +996,9 @@ export default function SellerSettingsPage() {
                             }
                           }}
                         />
+                        <p className="text-xs text-muted-foreground">
+                          Enter a 6-digit pincode
+                        </p>
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="city">City/District</Label>
@@ -2177,11 +2201,14 @@ export default function SellerSettingsPage() {
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-2">
                       <div className="space-y-2">
-                        <Label htmlFor="pickupPincode">Pincode</Label>
+                        <Label htmlFor="pickupPincode">
+                          Pincode <span className="text-red-500">*</span>
+                        </Label>
                         <Input
                           id="pickupPincode"
                           value={pickupAddress.pincode}
                           maxLength={6}
+                          required
                           onKeyPress={(e) => {
                             // Allow only digits
                             if (!/[0-9]/.test(e.key)) {
@@ -2245,6 +2272,9 @@ export default function SellerSettingsPage() {
                             }
                           }}
                         />
+                        <p className="text-xs text-muted-foreground">
+                          Enter a 6-digit pincode
+                        </p>
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="pickupCity">City/District</Label>
