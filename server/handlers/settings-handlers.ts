@@ -7,33 +7,39 @@ import { z } from "zod";
 export async function updatePickupAddressHandler(req: Request, res: Response) {
   try {
     const sellerId = req.user?.id;
-    
+
     if (!sellerId) {
-      return res.status(400).json({ error: 'Seller ID is required' });
+      return res.status(400).json({ error: "Seller ID is required" });
     }
-    
+
     const { pickupAddress } = req.body;
-    
+
     if (!pickupAddress) {
-      return res.status(400).json({ error: 'Pickup address is required' });
+      return res.status(400).json({ error: "Pickup address is required" });
     }
-    
+
     // Update the seller settings
     const settings = await storage.getSellerSettings(sellerId);
-    
+
     if (!settings) {
       // Create new settings with pickup address
       await storage.createSellerSettings({
         sellerId,
-        pickupAddress
+        pickupAddress:
+          typeof pickupAddress === "string"
+            ? pickupAddress
+            : JSON.stringify(pickupAddress),
       });
     } else {
       // Update existing settings
       await storage.updateSellerSettings(sellerId, {
-        pickupAddress
+        pickupAddress:
+          typeof pickupAddress === "string"
+            ? pickupAddress
+            : JSON.stringify(pickupAddress),
       });
     }
-    
+
     return res.status(200).json({ success: true });
   } catch (error) {
     console.error("Error updating pickup address:", error);
@@ -44,19 +50,23 @@ export async function updatePickupAddressHandler(req: Request, res: Response) {
 // Get settings for a seller
 export async function getSellerSettingsHandler(req: Request, res: Response) {
   try {
-    const sellerId = parseInt(req.params.sellerId || req.user?.id?.toString() || "0");
-    
+    const sellerId = parseInt(
+      req.params.sellerId || req.user?.id?.toString() || "0"
+    );
+
     if (!sellerId) {
-      return res.status(400).json({ error: 'Seller ID is required' });
+      return res.status(400).json({ error: "Seller ID is required" });
     }
-    
+
     // If this is not an admin or the seller themselves, deny access
-    if (req.user?.role !== 'admin' && req.user?.id !== sellerId) {
-      return res.status(403).json({ error: 'You do not have permission to view these settings' });
+    if (req.user?.role !== "admin" && req.user?.id !== sellerId) {
+      return res
+        .status(403)
+        .json({ error: "You do not have permission to view these settings" });
     }
-    
+
     const settings = await storage.getSellerSettings(sellerId);
-    
+
     if (!settings) {
       // If no settings exist yet, return default settings
       return res.status(200).json({
@@ -67,14 +77,14 @@ export async function getSellerSettingsHandler(req: Request, res: Response) {
           push: true,
           orderNotifications: true,
           paymentNotifications: true,
-          promotionNotifications: false
+          promotionNotifications: false,
         }),
         returnPolicy: "Standard 7-day return policy",
         autoAcceptOrders: false,
-        holidayMode: false
+        holidayMode: false,
       });
     }
-    
+
     return res.status(200).json(settings);
   } catch (error) {
     console.error("Error fetching seller settings:", error);
@@ -85,17 +95,21 @@ export async function getSellerSettingsHandler(req: Request, res: Response) {
 // Create or update settings for a seller
 export async function updateSellerSettingsHandler(req: Request, res: Response) {
   try {
-    const sellerId = parseInt(req.params.sellerId || req.user?.id?.toString() || "0");
-    
+    const sellerId = parseInt(
+      req.params.sellerId || req.user?.id?.toString() || "0"
+    );
+
     if (!sellerId) {
-      return res.status(400).json({ error: 'Seller ID is required' });
+      return res.status(400).json({ error: "Seller ID is required" });
     }
-    
+
     // If this is not an admin or the seller themselves, deny access
-    if (req.user?.role !== 'admin' && req.user?.id !== sellerId) {
-      return res.status(403).json({ error: 'You do not have permission to update these settings' });
+    if (req.user?.role !== "admin" && req.user?.id !== sellerId) {
+      return res
+        .status(403)
+        .json({ error: "You do not have permission to update these settings" });
     }
-    
+
     const settingsSchema = z.object({
       notificationPreferences: z.string().optional(),
       taxInformation: z.string().optional(),
@@ -105,13 +119,19 @@ export async function updateSellerSettingsHandler(req: Request, res: Response) {
       address: z.string().optional(),
       autoAcceptOrders: z.boolean().optional(),
       holidayMode: z.boolean().optional(),
-      holidayModeEndDate: z.string().optional().transform(val => val ? new Date(val) : undefined),
+      holidayModeEndDate: z
+        .string()
+        .optional()
+        .transform((val) => (val ? new Date(val) : undefined)),
     });
-    
+
     const validatedData = settingsSchema.parse(req.body);
-    
-    const updatedSettings = await storage.createOrUpdateSellerSettings(sellerId, validatedData as Partial<InsertSellerSetting>);
-    
+
+    const updatedSettings = await storage.createOrUpdateSellerSettings(
+      sellerId,
+      validatedData as Partial<InsertSellerSetting>
+    );
+
     return res.status(200).json(updatedSettings);
   } catch (error) {
     console.error("Error updating seller settings:", error);
@@ -125,22 +145,26 @@ export async function updateSellerSettingsHandler(req: Request, res: Response) {
 // Toggle holiday mode
 export async function toggleHolidayModeHandler(req: Request, res: Response) {
   try {
-    const sellerId = parseInt(req.params.sellerId || req.user?.id?.toString() || "0");
-    
+    const sellerId = parseInt(
+      req.params.sellerId || req.user?.id?.toString() || "0"
+    );
+
     if (!sellerId) {
-      return res.status(400).json({ error: 'Seller ID is required' });
+      return res.status(400).json({ error: "Seller ID is required" });
     }
-    
+
     // If this is not the seller themselves, deny access (even admins shouldn't toggle this)
     if (req.user?.id !== sellerId) {
-      return res.status(403).json({ error: 'You do not have permission to toggle holiday mode' });
+      return res
+        .status(403)
+        .json({ error: "You do not have permission to toggle holiday mode" });
     }
-    
+
     const settings = await storage.getSellerSettings(sellerId);
-    
+
     const holidayMode = !settings?.holidayMode;
     let holidayModeEndDate = settings?.holidayModeEndDate;
-    
+
     // If enabling holiday mode and no end date is set, default to 7 days from now
     if (holidayMode && !req.body.holidayModeEndDate && !holidayModeEndDate) {
       holidayModeEndDate = new Date();
@@ -148,17 +172,20 @@ export async function toggleHolidayModeHandler(req: Request, res: Response) {
     } else if (req.body.holidayModeEndDate) {
       holidayModeEndDate = new Date(req.body.holidayModeEndDate);
     }
-    
+
     // If disabling holiday mode, clear the end date
     if (!holidayMode) {
       holidayModeEndDate = undefined;
     }
-    
-    const updatedSettings = await storage.createOrUpdateSellerSettings(sellerId, {
-      holidayMode,
-      holidayModeEndDate
-    });
-    
+
+    const updatedSettings = await storage.createOrUpdateSellerSettings(
+      sellerId,
+      {
+        holidayMode,
+        holidayModeEndDate,
+      }
+    );
+
     return res.status(200).json(updatedSettings);
   } catch (error) {
     console.error("Error toggling holiday mode:", error);
@@ -167,19 +194,29 @@ export async function toggleHolidayModeHandler(req: Request, res: Response) {
 }
 
 // Update notification preferences
-export async function updateNotificationPreferencesHandler(req: Request, res: Response) {
+export async function updateNotificationPreferencesHandler(
+  req: Request,
+  res: Response
+) {
   try {
-    const sellerId = parseInt(req.params.sellerId || req.user?.id?.toString() || "0");
-    
+    const sellerId = parseInt(
+      req.params.sellerId || req.user?.id?.toString() || "0"
+    );
+
     if (!sellerId) {
-      return res.status(400).json({ error: 'Seller ID is required' });
+      return res.status(400).json({ error: "Seller ID is required" });
     }
-    
+
     // If this is not the seller themselves, deny access
     if (req.user?.id !== sellerId) {
-      return res.status(403).json({ error: 'You do not have permission to update notification preferences' });
+      return res
+        .status(403)
+        .json({
+          error:
+            "You do not have permission to update notification preferences",
+        });
     }
-    
+
     const preferencesSchema = z.object({
       email: z.boolean().optional(),
       sms: z.boolean().optional(),
@@ -189,33 +226,38 @@ export async function updateNotificationPreferencesHandler(req: Request, res: Re
       promotionNotifications: z.boolean().optional(),
       returnNotifications: z.boolean().optional(),
     });
-    
+
     const validatedPreferences = preferencesSchema.parse(req.body);
-    
+
     // Get current settings
     const currentSettings = await storage.getSellerSettings(sellerId);
-    
+
     // Parse current preferences or create default if none exist
     let currentPreferences = {};
     if (currentSettings?.notificationPreferences) {
       try {
-        currentPreferences = JSON.parse(currentSettings.notificationPreferences);
+        currentPreferences = JSON.parse(
+          currentSettings.notificationPreferences
+        );
       } catch (e) {
         console.error("Error parsing existing notification preferences:", e);
       }
     }
-    
+
     // Merge with new preferences
     const updatedPreferences = {
       ...currentPreferences,
-      ...validatedPreferences
+      ...validatedPreferences,
     };
-    
+
     // Update settings
-    const updatedSettings = await storage.createOrUpdateSellerSettings(sellerId, {
-      notificationPreferences: JSON.stringify(updatedPreferences)
-    });
-    
+    const updatedSettings = await storage.createOrUpdateSellerSettings(
+      sellerId,
+      {
+        notificationPreferences: JSON.stringify(updatedPreferences),
+      }
+    );
+
     return res.status(200).json(updatedSettings);
   } catch (error) {
     console.error("Error updating notification preferences:", error);
@@ -229,17 +271,23 @@ export async function updateNotificationPreferencesHandler(req: Request, res: Re
 // Update personal information
 export async function updatePersonalInfoHandler(req: Request, res: Response) {
   try {
-    const sellerId = parseInt(req.params.sellerId || req.user?.id?.toString() || "0");
-    
+    const sellerId = parseInt(
+      req.params.sellerId || req.user?.id?.toString() || "0"
+    );
+
     if (!sellerId) {
-      return res.status(400).json({ error: 'Seller ID is required' });
+      return res.status(400).json({ error: "Seller ID is required" });
     }
-    
+
     // If this is not the seller themselves, deny access (even admins shouldn't update this)
     if (req.user?.id !== sellerId) {
-      return res.status(403).json({ error: 'You do not have permission to update personal information' });
+      return res
+        .status(403)
+        .json({
+          error: "You do not have permission to update personal information",
+        });
     }
-    
+
     // Validate the personal info data
     const personalInfoSchema = z.object({
       name: z.string().optional(),
@@ -247,12 +295,12 @@ export async function updatePersonalInfoHandler(req: Request, res: Response) {
       phone: z.string().optional(),
       alternatePhone: z.string().optional(),
     });
-    
+
     const validatedPersonalInfo = personalInfoSchema.parse(req.body);
-    
+
     // Get current settings
     const currentSettings = await storage.getSellerSettings(sellerId);
-    
+
     // Parse current personal info or create default if none exist
     let currentPersonalInfo = {};
     if (currentSettings?.personalInfo) {
@@ -262,18 +310,21 @@ export async function updatePersonalInfoHandler(req: Request, res: Response) {
         console.error("Error parsing existing personal info:", e);
       }
     }
-    
+
     // Merge with new personal info
     const updatedPersonalInfo = {
       ...currentPersonalInfo,
-      ...validatedPersonalInfo
+      ...validatedPersonalInfo,
     };
-    
+
     // Update settings
-    const updatedSettings = await storage.createOrUpdateSellerSettings(sellerId, {
-      personalInfo: JSON.stringify(updatedPersonalInfo)
-    });
-    
+    const updatedSettings = await storage.createOrUpdateSellerSettings(
+      sellerId,
+      {
+        personalInfo: JSON.stringify(updatedPersonalInfo),
+      }
+    );
+
     return res.status(200).json(updatedSettings);
   } catch (error) {
     console.error("Error updating personal information:", error);
@@ -287,17 +338,23 @@ export async function updatePersonalInfoHandler(req: Request, res: Response) {
 // Update address information
 export async function updateAddressHandler(req: Request, res: Response) {
   try {
-    const sellerId = parseInt(req.params.sellerId || req.user?.id?.toString() || "0");
-    
+    const sellerId = parseInt(
+      req.params.sellerId || req.user?.id?.toString() || "0"
+    );
+
     if (!sellerId) {
-      return res.status(400).json({ error: 'Seller ID is required' });
+      return res.status(400).json({ error: "Seller ID is required" });
     }
-    
+
     // If this is not the seller themselves, deny access
     if (req.user?.id !== sellerId) {
-      return res.status(403).json({ error: 'You do not have permission to update address information' });
+      return res
+        .status(403)
+        .json({
+          error: "You do not have permission to update address information",
+        });
     }
-    
+
     // Validate the address data
     const addressSchema = z.object({
       line1: z.string().optional(),
@@ -306,12 +363,12 @@ export async function updateAddressHandler(req: Request, res: Response) {
       state: z.string().optional(),
       pincode: z.string().optional(),
     });
-    
+
     const validatedAddress = addressSchema.parse(req.body);
-    
+
     // Get current settings
     const currentSettings = await storage.getSellerSettings(sellerId);
-    
+
     // Parse current address or create default if none exist
     let currentAddress = {};
     if (currentSettings?.address) {
@@ -321,18 +378,21 @@ export async function updateAddressHandler(req: Request, res: Response) {
         console.error("Error parsing existing address:", e);
       }
     }
-    
+
     // Merge with new address
     const updatedAddress = {
       ...currentAddress,
-      ...validatedAddress
+      ...validatedAddress,
     };
-    
+
     // Update settings
-    const updatedSettings = await storage.createOrUpdateSellerSettings(sellerId, {
-      address: JSON.stringify(updatedAddress)
-    });
-    
+    const updatedSettings = await storage.createOrUpdateSellerSettings(
+      sellerId,
+      {
+        address: JSON.stringify(updatedAddress),
+      }
+    );
+
     return res.status(200).json(updatedSettings);
   } catch (error) {
     console.error("Error updating address information:", error);
@@ -346,17 +406,23 @@ export async function updateAddressHandler(req: Request, res: Response) {
 // Update store information
 export async function updateStoreHandler(req: Request, res: Response) {
   try {
-    const sellerId = parseInt(req.params.sellerId || req.user?.id?.toString() || "0");
-    
+    const sellerId = parseInt(
+      req.params.sellerId || req.user?.id?.toString() || "0"
+    );
+
     if (!sellerId) {
-      return res.status(400).json({ error: 'Seller ID is required' });
+      return res.status(400).json({ error: "Seller ID is required" });
     }
-    
+
     // If this is not the seller themselves, deny access
     if (req.user?.id !== sellerId) {
-      return res.status(403).json({ error: 'You do not have permission to update store information' });
+      return res
+        .status(403)
+        .json({
+          error: "You do not have permission to update store information",
+        });
     }
-    
+
     // Validate the store data
     const storeSchema = z.object({
       name: z.string().optional(),
@@ -365,27 +431,31 @@ export async function updateStoreHandler(req: Request, res: Response) {
       banner: z.string().optional(),
       contactEmail: z.string().email().optional(),
       contactPhone: z.string().optional(),
-      socialLinks: z.object({
-        facebook: z.string().optional(),
-        instagram: z.string().optional(),
-        twitter: z.string().optional(),
-        website: z.string().optional(),
-      }).optional(),
-      businessHours: z.array(
-        z.object({
-          day: z.string(),
-          open: z.boolean(),
-          openTime: z.string().optional(),
-          closeTime: z.string().optional(),
+      socialLinks: z
+        .object({
+          facebook: z.string().optional(),
+          instagram: z.string().optional(),
+          twitter: z.string().optional(),
+          website: z.string().optional(),
         })
-      ).optional(),
+        .optional(),
+      businessHours: z
+        .array(
+          z.object({
+            day: z.string(),
+            open: z.boolean(),
+            openTime: z.string().optional(),
+            closeTime: z.string().optional(),
+          })
+        )
+        .optional(),
     });
-    
+
     const validatedStore = storeSchema.parse(req.body);
-    
+
     // Get current settings
     const currentSettings = await storage.getSellerSettings(sellerId);
-    
+
     // Parse current store or create default if none exist
     let currentStore = {};
     if (currentSettings?.store) {
@@ -395,18 +465,21 @@ export async function updateStoreHandler(req: Request, res: Response) {
         console.error("Error parsing existing store:", e);
       }
     }
-    
+
     // Merge with new store
     const updatedStore = {
       ...currentStore,
-      ...validatedStore
+      ...validatedStore,
     };
-    
+
     // Update settings
-    const updatedSettings = await storage.createOrUpdateSellerSettings(sellerId, {
-      store: JSON.stringify(updatedStore)
-    });
-    
+    const updatedSettings = await storage.createOrUpdateSellerSettings(
+      sellerId,
+      {
+        store: JSON.stringify(updatedStore),
+      }
+    );
+
     return res.status(200).json(updatedSettings);
   } catch (error) {
     console.error("Error updating store information:", error);
