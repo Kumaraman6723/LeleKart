@@ -135,6 +135,7 @@ export default function SellerSettingsPage() {
     city: "",
     state: "",
     pincode: "",
+    authorizationSignature: "",
   });
 
   // Billing information state
@@ -252,6 +253,8 @@ export default function SellerSettingsPage() {
             city: parsedPickupAddress.city || "",
             state: parsedPickupAddress.state || "",
             pincode: parsedPickupAddress.pincode || "",
+            authorizationSignature:
+              parsedPickupAddress.authorizationSignature || "",
           });
         } catch (e) {
           console.error("Error parsing pickup address:", e);
@@ -2167,6 +2170,61 @@ export default function SellerSettingsPage() {
                           Enter a 10-digit number without spaces or special
                           characters
                         </p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2 mt-4">
+                      <Label htmlFor="authorizationSignature">
+                        Authorization Signature
+                      </Label>
+                      <div className="space-y-2">
+                        <div className="flex items-center space-x-2">
+                          <Input
+                            id="authorizationSignature"
+                            value={pickupAddress.authorizationSignature}
+                            onChange={(e) =>
+                              setPickupAddress({
+                                ...pickupAddress,
+                                authorizationSignature: e.target.value,
+                              })
+                            }
+                            placeholder="https://example.com/signature.png"
+                            className="flex-1"
+                          />
+                          <span className="text-sm text-muted-foreground">
+                            or
+                          </span>
+                          <FileUpload
+                            onChange={(url: string) =>
+                              setPickupAddress({
+                                ...pickupAddress,
+                                authorizationSignature: url,
+                              })
+                            }
+                            value={pickupAddress.authorizationSignature}
+                            label="Upload Signature"
+                            accept="image/*"
+                            maxSizeMB={1}
+                            id="signature-upload"
+                          />
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          Upload your signature image. Max file size: 1MB.
+                          Supported formats: JPG, PNG.
+                        </div>
+                        {pickupAddress.authorizationSignature && (
+                          <div className="mt-2 p-2 border rounded-md flex justify-center">
+                            <img
+                              src={pickupAddress.authorizationSignature}
+                              alt="Authorization Signature"
+                              className="h-20 w-auto object-contain"
+                              onError={(e) =>
+                                ((e.target as HTMLImageElement).src =
+                                  "https://via.placeholder.com/150?text=Signature+Preview")
+                              }
+                            />
+                          </div>
+                        )}
                       </div>
                     </div>
 
