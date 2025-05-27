@@ -53,6 +53,7 @@ import {
   exportProductsToExcel,
   exportAllProductsToExcel,
 } from "./handlers/export-handler"; // Import export handlers
+import QRCode from "qrcode";
 
 // Helper function to apply product display settings
 function applyProductDisplaySettings(products: any[], settings: any) {
@@ -1088,6 +1089,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }),
           };
 
+          // Generate QR code with invoice details
+          const qrData = `https://lelekart.in/orders/${orderId}`;
+
+          const qrCodeDataUrl = await QRCode.toDataURL(qrData, {
+            errorCorrectionLevel: "H",
+            margin: 1,
+            width: 150,
+          });
+
+          // Add QR code to the data
+          invoiceData.qrCodeDataUrl = qrCodeDataUrl;
+
+          // Register QR code helper
+          handlebars.registerHelper("qrCode", function () {
+            return new handlebars.SafeString(
+              `<img src="${qrCodeDataUrl}" alt="Invoice QR Code" style="width: 150px; height: 150px;">`
+            );
+          });
+
           // Generate HTML for this seller's invoice
           const invoiceHtml = await generateInvoiceHtml(invoiceData);
           return {
@@ -1313,6 +1333,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
         totalTaxAmount,
         grandTotal,
       };
+
+      // Generate QR code with invoice details
+      const qrData = {
+        invoiceNumber: `INV-${orderId}`,
+        orderId: orderId,
+        date: order.date,
+        total: grandTotal,
+        customerName: user.name,
+        customerEmail: user.email,
+        url: `http://127.0.0.1:5000/orders/${orderId}`, // Add URL to view order details
+      };
+
+      const qrCodeDataUrl = await QRCode.toDataURL(JSON.stringify(qrData), {
+        errorCorrectionLevel: "H",
+        margin: 1,
+        width: 150,
+      });
+
+      // Add QR code to the data
+      invoiceData.qrCodeDataUrl = qrCodeDataUrl;
+
+      // Register QR code helper
+      handlebars.registerHelper("qrCode", function () {
+        return new handlebars.SafeString(
+          `<img src="${qrCodeDataUrl}" alt="Invoice QR Code" style="width: 150px; height: 150px;">`
+        );
+      });
 
       if (format === "html") {
         // For HTML format, we'll directly render the template
@@ -11830,346 +11877,370 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       );
 
+      // Generate QR code with invoice details
+      const qrData = `https://lelekart.in/orders/${data.order.id}`;
+
+      const qrCodeDataUrl = await QRCode.toDataURL(qrData, {
+        errorCorrectionLevel: "H",
+        margin: 1,
+        width: 150,
+      });
+
+      // Add QR code to the data
+      data.qrCodeDataUrl = qrCodeDataUrl;
+
+      // Register QR code helper
+      handlebars.registerHelper("qrCode", function () {
+        return new handlebars.SafeString(
+          `<img src="${qrCodeDataUrl}" alt="Invoice QR Code" style="width: 150px; height: 150px;">`
+        );
+      });
+
       // Invoice template with amount in words
       const invoiceTemplate = `<!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="utf-8">
-        <title>Tax Invoice</title>
-        <style>
-          body {
-            font-family: Arial, sans-serif;
-            font-size: 12px;
-            line-height: 1.4;
-            color: #333;
-            margin: 20px;
-            padding: 0;
-          }
-          
-          .container {
-            max-width: 800px;
-            margin: 0 auto;
-            border: 2px solid #000;
-          }
-          
-          .invoice-header {
-            text-align: center;
-            padding: 15px;
-            background-color: #f5f5f5;
-          }
-          
-          .invoice-logo {
-            max-width: 150px;
-            margin: 0 auto;
-          }
-          
-          .invoice-title {
-            font-weight: bold;
-            font-size: 18px;
-            margin-top: 12px;
-            color: #2c3e50;
-          }
-          
-          .header-info {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            border-bottom: 1px solid #000;
-            padding: 12px 15px;
-            min-height: 24px;
-            font-size: 12px;
-          }
-          
-          .header-left {
-            text-align: left;
-          }
-          
-          .header-right {
-            text-align: right;
-          }
-          
-          .address-section {
-            display: flex;
-            border-bottom: 1px solid #000;
-            min-height: 120px;
-            font-size: 12px;
-          }
-          
-          .bill-to, .ship-to {
-            width: 50%;
-            padding: 12px;
-            box-sizing: border-box;
-          }
-          
-          .bill-to {
-            text-align: left;
-            float: left;
-          }
-          
-          .ship-to {
-            text-align: left;
-            float: right;
-          }
-          
-          .business-section {
-            display: flex;
-            border-bottom: 1px solid #000;
-            min-height: 140px;
-            clear: both;
-            font-size: 12px;
-          }
-          
-          .bill-from, .ship-from {
-            width: 50%;
-            padding: 12px;
-            box-sizing: border-box;
-          }
-          
-          .bill-from {
-            text-align: left;
-            float: left;
-          }
-          
-          .ship-from {
-            text-align: left;
-            float: right;
-          }
-          
-          table.items {
-            width: 100%;
-            border-collapse: collapse;
-            border-bottom: 1px solid #000;
-            font-size: 12px;
-          }
-          
-          table.items th {
-            background-color: #f8f9fa;
-            border: 1px solid #000;
-            padding: 10px 6px;
-            text-align: center;
-            font-weight: bold;
-            font-size: 12px;
-            color: #2c3e50;
-          }
-          
-          table.items td {
-            border: 1px solid #000;
-            padding: 8px 6px;
-            text-align: center;
-            font-size: 12px;
-            vertical-align: top;
-          }
-          
-          .description-cell {
-            text-align: left !important;
-            max-width: 200px;
-          }
-          
-          .signature-section {
-            padding: 20px;
-            text-align: right;
-            border-bottom: 1px solid #000;
-            font-size: 12px;
-          }
-          
-          .signature-line {
-            border-top: 1px solid #000;
-            width: 200px;
-            margin: 40px auto 5px auto;
-            padding-top: 5px;
-            font-size: 12px;
-          }
-          
-          .bold {
-            font-weight: 600;
-            color: #2c3e50;
-          }
-          
-          .taxes-cell {
-            font-size: 11px;
-            line-height: 1.3;
-          }
-          
-          .amount-in-words {
-            margin: 20px 0;
-            padding: 15px;
-            background-color: #ffffff;
-            font-family: 'Arial', sans-serif;
-            font-size: 12px;
-            line-height: 1.5;
-            color: #2c3e50;
-            border-radius: 4px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-          }
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Tax Invoice</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      font-size: 12px;
+      line-height: 1.4;
+      color: #333;
+      margin: 20px;
+      padding: 0;
+    }
+    
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      border: 2px solid #000;
+    }
+    
+    .invoice-header {
+      text-align: center;
+      padding: 20px;
+      background-color: #ffffff;
+      border-radius: 8px;
+      margin-bottom: 0;
+    }
+    
+    .invoice-logo {
+      max-height: 60px;
+      width: auto;
+      margin-bottom: 10px;
+    }
+    
+    .invoice-title {
+      font-weight: bold;
+      font-size: 18px;
+      margin-top: 12px;
+      color: #2c3e50;
+    }
+    
+    .header-info {
+      padding: 12px 15px;
+      border-bottom: 1px solid #000;
+      font-size: 12px;
+    }
+    
+    .header-left {
+      text-align: left;
+    }
+    
+    .address-section {
+      border-bottom: 1px solid #000;
+      overflow: hidden;
+      font-size: 12px;
+    }
+    
+    .bill-to, .ship-to {
+      width: 50%;
+      padding: 12px;
+      box-sizing: border-box;
+      min-height: 120px;
+      vertical-align: top;
+    }
+    
+    .bill-to {
+      float: left;
+      border-right: 1px solid #000;
+    }
+    
+    .ship-to {
+      float: right;
+    }
+    
+    .business-section {
+      border-bottom: 1px solid #000;
+      overflow: hidden;
+      font-size: 12px;
+    }
+    
+    .bill-from, .ship-from {
+      width: 50%;
+      padding: 12px;
+      box-sizing: border-box;
+      min-height: 140px;
+      vertical-align: top;
+    }
+    
+    .bill-from {
+      float: left;
+      border-right: 1px solid #000;
+    }
+    
+    .ship-from {
+      float: right;
+    }
+    
+    table.items {
+      width: 100%;
+      border-collapse: collapse;
+      border-bottom: 1px solid #000;
+      font-size: 12px;
+    }
+    
+    table.items th {
+      background-color: #f8f9fa;
+      border: 1px solid #000;
+      padding: 10px 6px;
+      text-align: center;
+      font-weight: bold;
+      font-size: 12px;
+      color: #2c3e50;
+    }
+    
+    table.items td {
+      border: 1px solid #000;
+      padding: 8px 6px;
+      text-align: center;
+      font-size: 12px;
+      vertical-align: top;
+    }
+    
+    .description-cell {
+      text-align: left !important;
+      max-width: 200px;
+      word-wrap: break-word;
+    }
+    
+    .amount-in-words {
+      margin: 0;
+      padding: 15px;
+      background-color: #ffffff;
+      border-bottom: 1px solid #000;
+      font-family: 'Arial', sans-serif;
+      font-size: 12px;
+      line-height: 1.5;
+      color: #2c3e50;
+    }
+    
+    .signature-section {
+      background-color: #ffffff;
+      padding: 20px;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    
+    .signature-content {
+      width: 100%;
+      overflow: hidden;
+    }
+    
+    .qr-section {
+      float: left;
+      width: 40%;
+      text-align: left;
+    }
+    
+    .signature-box {
+      float: right;
+      width: 50%;
+      text-align: right;
+      font-size: 12px;
+      color: #2c3e50;
+    }
+    
+    .signature-box .bold {
+      font-size: 13px;
+      margin-bottom: 5px;
+      font-weight: 600;
+      color: #000000;
+    }
+    
+    .signature-box img {
+      height: 60px;
+      margin: 10px 0;
+      display: block;
+      margin-left: auto;
+    }
+    
+    .bold {
+      font-weight: 600;
+      color: #2c3e50;
+    }
+    
+    .taxes-cell {
+      font-size: 11px;
+      line-height: 1.3;
+    }
 
-          .signature-box {
-            font-size: 12px;
-            color: #2c3e50;
-          }
-
-          .signature-box .bold {
-            font-size: 13px;
-            margin-bottom: 5px;
-          }
-
-          .signature-box img {
-            height: 60px;
-            margin: 10px 0;
-            display: block;
-          }
-
-          .signature-box div:last-child {
-            font-size: 12px;
-            margin-top: 5px;
-          }
-        </style>
-      </head>
-      <body>
-      <div class="invoice-header" style="background-color: #FFFFFF; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
-           <img src="https://drive.google.com/uc?export=view&id=138zcFxrDkzZoVOkDd1ABPHSdbl31n-Ar" alt="LeleKart Logo" class="invoice-logo" style="max-height: 60px; width: auto; margin-bottom: 10px;">
-            <div class="invoice-title">Tax Invoice/Bill of Supply/Cash Memo</div>
-          </div>
-        <div class="container">
-          
-          
-          <div class="header-info">
-            <div class="header-left">
-              <div><span class="bold">Invoice Date:</span>{{formatDate order.date " DD MMM YYYY,dddd"}}</div>
-              <div><span class="bold">Invoice No:</span> LK-{{order.id}}</div>
-              <div><span class="bold">Order No:</span> {{order.orderNumber}}</div>
-            </div>
-          </div>
-          
-          <div class="address-section">
-            <div class="bill-to">
-              <div class="bold">Billing Address</div>
-              <br>
-              {{#if order.shippingDetails}}
-                <div>{{user.name}}</div>
-                <div>{{order.shippingDetails.address}}</div>
-                {{#if order.shippingDetails.address2}}<div>{{order.shippingDetails.address2}}</div>{{/if}}
-                <div>{{order.shippingDetails.city}}, {{order.shippingDetails.state}} {{order.shippingDetails.zipCode}}</div>
-              {{else}}
-                <div>{{user.name}}</div>
-                <div>{{user.email}}</div>
-                <div>Address details not available</div>
-              {{/if}}
-            </div>
-            <div class="ship-to">
-              <div class="bold">Shipping Address</div>
-              <br>
-              {{#if order.shippingDetails}}
-                <div>{{user.name}}</div>
-                 <div>{{order.shippingDetails.address}}</div>
-                {{#if order.shippingDetails.address2}}<div>{{order.shippingDetails.address2}}</div>{{/if}}
-                <div>{{order.shippingDetails.city}}, {{order.shippingDetails.state}} {{order.shippingDetails.zipCode}}</div>
-              {{else}}
-                <div>{{user.name}}</div>
-                <div>{{user.email}}</div>
-                <div>Address details not available</div>
-              {{/if}}
-            </div>
-          </div>
-          
-          <div class="business-section">
-            <div class="bill-from">
-              <div class="bold">Bill From</div>
-              <br>
-              {{#if seller.billingAddress}}
-              <div class="bold">{{seller.pickupAddress.businessName}}</div>
-                <div>{{seller.billingAddress.line1}}</div>
-                {{#if seller.billingAddress.line2}}<div>{{seller.billingAddress.line2}}</div>{{/if}}
-                <div>{{seller.billingAddress.city}}, {{seller.billingAddress.state}} {{seller.billingAddress.pincode}}</div>
-                <div>GSTIN: {{seller.taxInformation.gstin}}</div>
-                <div>PAN: {{seller.taxInformation.panNumber}}</div>
-               
-              {{else}}
-                <div class="bold">{{seller.taxInformation.businessName}}</div>
-                <div>{{seller.address}}</div>
-                <div>Mumbai, Maharashtra 400001</div>
-                {{#if seller.taxInformation.gstin}}<div>GSTIN: {{seller.taxInformation.gstin}}</div>{{/if}}
-              {{/if}}
-            </div>
-            <div class="ship-from">
-              <div class="bold">Ship From</div>
-              <br>
-              {{#if seller.pickupAddress}}
-                <div class="bold">{{seller.pickupAddress.businessName}}</div>
-                <div>{{seller.pickupAddress.line1}}</div>
-                {{#if seller.pickupAddress.line2}}<div>{{seller.pickupAddress.line2}}</div>{{/if}}
-                <div>{{seller.pickupAddress.city}}, {{seller.pickupAddress.state}} {{seller.pickupAddress.pincode}}</div>
-                <div>GSTIN: {{seller.taxInformation.gstin}}</div>
-                <div>PAN: {{seller.taxInformation.panNumber}}</div>
-               
-              {{else}}
-                <div class="bold">{{seller.taxInformation.businessName}}</div>
-                <div>Warehouse Address: {{seller.address}}</div>
-                <div>Mumbai, Maharashtra 400001</div>
-                {{#if seller.taxInformation.gstin}}<div>GSTIN: {{seller.taxInformation.gstin}}</div>{{/if}}
-              {{/if}}
-            </div>
-          </div>
-          
-          <table class="items">
-            <thead>
-              <tr>
-                <th>Sr No</th>
-                <th>Description</th>
-                <th>Qty</th>
-                <th>MRP</th>
-                <th>Discount</th>
-                <th>Taxable Value</th>
-                <th>Taxes</th>
-                <th>Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {{#each order.items}}
-              <tr>
-                <td>{{add @index 1}}</td>
-                <td class="description-cell">{{this.product.name}}</td>
-                <td>{{this.quantity}}</td>
-                <td>{{formatMoney this.price}}</td>
-                <td>{{formatMoney (subtract this.product.mrp this.price)}}</td>
-                <td>{{calculateTaxableValue this.price this.quantity this.product.gstRate}}</td>
-              
-               <td class="taxes-cell">{{{calculateTaxes this.price this.quantity this.product.gstRate ../order.shippingDetails.state ../seller.pickupAddress.state}}}</td>
-               
-                <td>{{formatMoney (multiply this.price this.quantity)}}</td>
-              </tr>
-              {{/each}}
-            </tbody>
-          </table>
-          
-        
-            <div class="amount-in-words">
-              <span style="font-weight: 600; color: #2c3e50;">Amount in words:</span>
-              <span style="font-style: italic; margin-left: 5px;">{{amountInWords (calculateTotal order.items)}} Only</span>
-            </div>
-         
-          
-          <div class="signature-section" style="background-color: #FFFFFF; padding: 20px; border-radius: 8px; margin-top: 20px; text-align: right;">
-            <div class="signature-box" style="display: inline-block; text-align: right;">
-              {{#if seller.pickupAddress.businessName}}
-                 <div class="bold" style="color: #000000">{{seller.pickupAddress.businessName}}</div>
-              {{else}}
-                <div class="bold" style="color: #000000">{{seller.taxInformation.businessName}}</div>
-              {{/if}}
-              <img 
-                src="{{#if seller.pickupAddress.authorizationSignature}}
-                  {{seller.pickupAddress.authorizationSignature}}
-                {{else}}
-                  https://drive.google.com/uc?export=view&id=1NC3MTl6qklBjamL3bhjRMdem6rQ0mB9F
-                {{/if}}" 
-                alt="Authorized Signature" 
-                style="height: 60px; margin: 10px 0 10px auto; display: block;" 
-              />
-              <div class="bold">Authorized Signatory</div>
-            </div>
+    /* Clear floats */
+    .clearfix::after {
+      content: "";
+      display: table;
+      clear: both;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="invoice-header">
+      <img src="https://drive.google.com/uc?export=view&id=138zcFxrDkzZoVOkDd1ABPHSdbl31n-Ar" alt="LeleKart Logo" class="invoice-logo">
+      <div class="invoice-title">Tax Invoice/Bill of Supply/Cash Memo</div>
+    </div>
+    
+    <div class="header-info">
+      <div class="header-left">
+        <div><span class="bold">Invoice Date:</span> {{formatDate order.date " DD MMM YYYY,dddd"}}</div>
+        <div><span class="bold">Invoice No:</span> LK-{{order.id}}</div>
+        <div><span class="bold">Order No:</span> {{order.orderNumber}}</div>
+      </div>
+    </div>
+    
+    <div class="address-section clearfix">
+      <div class="bill-to">
+        <div class="bold">Billing Address</div>
+        <br>
+        {{#if order.shippingDetails}}
+          <div>{{user.name}}</div>
+          <div>{{order.shippingDetails.address}}</div>
+          {{#if order.shippingDetails.address2}}<div>{{order.shippingDetails.address2}}</div>{{/if}}
+          <div>{{order.shippingDetails.city}}, {{order.shippingDetails.state}} {{order.shippingDetails.zipCode}}</div>
+        {{else}}
+          <div>{{user.name}}</div>
+          <div>{{user.email}}</div>
+          <div>Address details not available</div>
+        {{/if}}
+      </div>
+      <div class="ship-to">
+        <div class="bold">Shipping Address</div>
+        <br>
+        {{#if order.shippingDetails}}
+          <div>{{user.name}}</div>
+          <div>{{order.shippingDetails.address}}</div>
+          {{#if order.shippingDetails.address2}}<div>{{order.shippingDetails.address2}}</div>{{/if}}
+          <div>{{order.shippingDetails.city}}, {{order.shippingDetails.state}} {{order.shippingDetails.zipCode}}</div>
+        {{else}}
+          <div>{{user.name}}</div>
+          <div>{{user.email}}</div>
+          <div>Address details not available</div>
+        {{/if}}
+      </div>
+    </div>
+    
+    <div class="business-section clearfix">
+      <div class="bill-from">
+        <div class="bold">Bill From</div>
+        <br>
+        {{#if seller.billingAddress}}
+          <div class="bold">{{seller.pickupAddress.businessName}}</div>
+          <div>{{seller.billingAddress.line1}}</div>
+          {{#if seller.billingAddress.line2}}<div>{{seller.billingAddress.line2}}</div>{{/if}}
+          <div>{{seller.billingAddress.city}}, {{seller.billingAddress.state}} {{seller.billingAddress.pincode}}</div>
+          <div>GSTIN: {{seller.taxInformation.gstin}}</div>
+          <div>PAN: {{seller.taxInformation.panNumber}}</div>
+        {{else}}
+          <div class="bold">{{seller.taxInformation.businessName}}</div>
+          <div>{{seller.address}}</div>
+          <div>Mumbai, Maharashtra 400001</div>
+          {{#if seller.taxInformation.gstin}}<div>GSTIN: {{seller.taxInformation.gstin}}</div>{{/if}}
+        {{/if}}
+      </div>
+      <div class="ship-from">
+        <div class="bold">Ship From</div>
+        <br>
+        {{#if seller.pickupAddress}}
+          <div class="bold">{{seller.pickupAddress.businessName}}</div>
+          <div>{{seller.pickupAddress.line1}}</div>
+          {{#if seller.pickupAddress.line2}}<div>{{seller.pickupAddress.line2}}</div>{{/if}}
+          <div>{{seller.pickupAddress.city}}, {{seller.pickupAddress.state}} {{seller.pickupAddress.pincode}}</div>
+          <div>GSTIN: {{seller.taxInformation.gstin}}</div>
+          <div>PAN: {{seller.taxInformation.panNumber}}</div>
+        {{else}}
+          <div class="bold">{{seller.taxInformation.businessName}}</div>
+          <div>Warehouse Address: {{seller.address}}</div>
+          <div>Mumbai, Maharashtra 400001</div>
+          {{#if seller.taxInformation.gstin}}<div>GSTIN: {{seller.taxInformation.gstin}}</div>{{/if}}
+        {{/if}}
+      </div>
+    </div>
+    
+    <table class="items">
+      <thead>
+        <tr>
+          <th>Sr No</th>
+          <th>Description</th>
+          <th>Qty</th>
+          <th>MRP</th>
+          <th>Discount</th>
+          <th>Taxable Value</th>
+          <th>Taxes</th>
+          <th>Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each order.items}}
+        <tr>
+          <td>{{add @index 1}}</td>
+          <td class="description-cell">{{this.product.name}}</td>
+          <td>{{this.quantity}}</td>
+          <td>{{formatMoney this.price}}</td>
+          <td>{{formatMoney (subtract this.product.mrp this.price)}}</td>
+          <td>{{calculateTaxableValue this.price this.quantity this.product.gstRate}}</td>
+          <td class="taxes-cell">{{{calculateTaxes this.price this.quantity this.product.gstRate ../order.shippingDetails.state ../seller.pickupAddress.state}}}</td>
+          <td>{{formatMoney (multiply this.price this.quantity)}}</td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table>
+    
+    <div class="amount-in-words">
+      <span style="font-weight: 600; color: #2c3e50;">Amount in words:</span>
+      <span style="font-style: italic; margin-left: 5px;">{{amountInWords (calculateTotal order.items)}} Only</span>
+    </div>
+    
+    <div class="signature-section">
+      <div class="signature-content clearfix">
+        <div class="qr-section">
+          <div style="margin-bottom: 10px; font-size: 12px; color: #666;">Scan to verify invoice</div>
+          <div style="margin-top: 20px;">
+            {{{qrCode}}}
           </div>
         </div>
-      </body>
-      </html>`;
+        <div class="signature-box">
+          {{#if seller.pickupAddress.businessName}}
+            <div class="bold">{{seller.pickupAddress.businessName}}</div>
+          {{else}}
+            <div class="bold">{{seller.taxInformation.businessName}}</div>
+          {{/if}}
+          <img 
+            src="{{#if seller.pickupAddress.authorizationSignature}}
+              {{seller.pickupAddress.authorizationSignature}}
+            {{else}}
+              https://drive.google.com/uc?export=view&id=1NC3MTl6qklBjamL3bhjRMdem6rQ0mB9F
+            {{/if}}" 
+            alt="Authorized Signature"
+          />
+          <div class="bold">Authorized Signatory</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>`;
       handlebars.registerHelper("calculateTotal", function (items) {
         return items.reduce((sum, item) => sum + item.price * item.quantity, 0);
       });
