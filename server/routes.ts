@@ -11919,38 +11919,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
     
     .invoice-header {
-      text-align: center;
-      padding: 20px;
+      padding: 2px;
       background-color: #ffffff;
-      border-radius: 8px;
+      border-radius: 2px;
       margin-bottom: 0;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 20px;
     }
     
     .invoice-logo {
-      max-height: 60px;
+      max-height: 40px;
       width: auto;
-      margin-bottom: 10px;
+    }
+    
+    .header-right {
+      text-align: right;
     }
     
     .invoice-title {
       font-weight: bold;
-      font-size: 18px;
-      margin-top: 12px;
+      font-size: 16px;
       color: #2c3e50;
+      margin: 0 0 10px 0;
     }
     
     .header-info {
       padding: 12px 15px;
-      border-bottom: 1px solid #000;
       font-size: 12px;
+      text-align: right;
     }
     
     .header-left {
-      text-align: left;
+      text-align: right;
     }
     
     .address-section {
-      border-bottom: 1px solid #000;
+      
       overflow: hidden;
       font-size: 12px;
     }
@@ -11965,7 +11971,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     
     .bill-to {
       float: left;
-      border-right: 1px solid #000;
     }
     
     .ship-to {
@@ -11973,7 +11978,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
     
     .business-section {
-      border-bottom: 1px solid #000;
+   
       overflow: hidden;
       font-size: 12px;
     }
@@ -11982,13 +11987,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       width: 50%;
       padding: 12px;
       box-sizing: border-box;
-      min-height: 140px;
+      min-height: 100px;
       vertical-align: top;
     }
     
     .bill-from {
       float: left;
-      border-right: 1px solid #000;
     }
     
     .ship-from {
@@ -11998,7 +12002,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     table.items {
       width: 100%;
       border-collapse: collapse;
-      border-bottom: 1px solid #000;
+      border-bottom: 2px solid #000;
       font-size: 12px;
     }
     
@@ -12028,9 +12032,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     
     .amount-in-words {
       margin: 0;
-      padding: 15px;
+      padding: 10px 15px;
       background-color: #ffffff;
-      border-bottom: 1px solid #000;
+    
       font-family: 'Arial', sans-serif;
       font-size: 12px;
       line-height: 1.5;
@@ -12039,7 +12043,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     
     .signature-section {
       background-color: #ffffff;
-      padding: 20px;
+      padding: 15px;
       border-radius: 8px;
       overflow: hidden;
     }
@@ -12051,13 +12055,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     
     .qr-section {
       float: left;
-      width: 40%;
+      width: 30%;
       text-align: left;
+    }
+    
+    .qr-section img,
+    .qr-section svg {
+      max-width: 80px;
+      max-height: 80px;
     }
     
     .signature-box {
       float: right;
-      width: 50%;
+      width: 60%;
       text-align: right;
       font-size: 12px;
       color: #2c3e50;
@@ -12071,8 +12081,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
     
     .signature-box img {
-      height: 60px;
-      margin: 10px 0;
+      height: 50px;
+      margin: 8px 0;
       display: block;
       margin-left: auto;
     }
@@ -12099,14 +12109,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   <div class="container">
     <div class="invoice-header">
       <img src="https://drive.google.com/uc?export=view&id=138zcFxrDkzZoVOkDd1ABPHSdbl31n-Ar" alt="LeleKart Logo" class="invoice-logo">
-      <div class="invoice-title">Tax Invoice/Bill of Supply/Cash Memo</div>
-    </div>
-    
-    <div class="header-info">
-      <div class="header-left">
-        <div><span class="bold">Invoice Date:</span> {{formatDate order.date " DD MMM YYYY,dddd"}}</div>
-        <div><span class="bold">Invoice No:</span> LK-{{order.id}}</div>
-        <div><span class="bold">Order No:</span> {{order.orderNumber}}</div>
+      <div class="header-right">
+        <div class="invoice-title">Tax Invoice/Bill of Supply/Cash Memo</div>
+        <div class="header-info">
+          <div class="header-left">
+            <div><span class="bold">Invoice Date:</span> {{formatDate order.date " DD MMM YYYY,dddd"}}</div>
+            <div><span class="bold">Invoice No:</span> LK-{{order.id}}</div>
+            <div><span class="bold">Order No:</span> {{order.orderNumber}}</div>
+          </div>
+        </div>
       </div>
     </div>
     
@@ -12215,8 +12226,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     <div class="signature-section">
       <div class="signature-content clearfix">
         <div class="qr-section">
-          <div style="margin-bottom: 10px; font-size: 12px; color: #666;">Scan to verify invoice</div>
-          <div style="margin-top: 20px;">
+          <div style="margin-bottom: 5px; font-size: 10px; color: #666;">Scan to verify invoice</div>
+          <div style="margin-top: 10px;">
             {{{qrCode}}}
           </div>
         </div>
@@ -12235,6 +12246,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
             alt="Authorized Signature"
           />
           <div class="bold">Authorized Signatory</div>
+        </div>
+      </div>
+      <!-- Declaration section inside container -->
+      <div style="padding: 12px; font-size: 10px; line-height: 1.1; color: #333; background-color: #f9f9f9; border-top: 1px solid #000;">
+        <div style="display: flex; justify-content: space-between; gap: 10px;">
+          <div style="flex: 1;">
+            <div style="font-weight: bold; font-size: 12px; margin-bottom: 2px; color: #2c3e50;">DECLARATION</div>
+            <div style="margin-bottom: 4px;">The goods sold as part of this shipment are intended for end-user consumption and are not for retail sale</div>
+            
+            <div style="font-weight: bold; font-size: 12px; margin-bottom: 2px; color: #2c3e50;">Return Policy:</div>
+            <div>If the item is defective or not as described, you may return it during delivery directly or you may request for return within 02 days of delivery for items that are defective or are different from what you ordered. Items must be complete (including freebies), free from damages and for items returned for being different from what you ordered, they must be unopened as well.</div>
+          </div>
+          
+          <div style="flex: 1;">
+            <div style="font-weight: bold; font-size: 12px; margin-bottom: 2px; color: #2c3e50;">Regd. Office</div>
+            <div style="margin-bottom: 4px;">Building no 2072, Chandigarh Royale City, Bollywood Gully<br>
+            Banur, SAS Nagar, Mohali, Punjab, India - 140601</div>
+            
+            <div style="font-weight: bold; font-size: 12px; margin-bottom: 2px; color: #2c3e50;">Contact us</div>
+            <div>If you have any questions, feel free to call customer care at +91 98774 54036 or use Contact Us section in our App, or log on to www.lelekart.com/Contact us</div>
+          </div>
         </div>
       </div>
     </div>
@@ -12295,14 +12327,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
             font-weight: bold;
             font-size: 18px;
             padding: 10px;
-            border-bottom: 1px solid #000;
+           
           }
           
           .seller-info {
             display: flex;
             justify-content: space-between;
             padding: 10px;
-            border-bottom: 1px solid #000;
+        
           }
           
           .seller-details {
