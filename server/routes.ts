@@ -11725,7 +11725,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .invoice-header {
             text-align: center;
             padding: 10px;
-            border-bottom: 2px solid #000;
+            
             background-color: #f5f5f5;
           }
           
@@ -11857,11 +11857,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         </style>
       </head>
       <body>
-        <div class="container">
-          <div class="invoice-header" style="background-color: #FFFFFF; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+      <div class="invoice-header" style="background-color: #FFFFFF; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
            <img src="https://drive.google.com/uc?export=view&id=138zcFxrDkzZoVOkDd1ABPHSdbl31n-Ar" alt="LeleKart Logo" class="invoice-logo" style="max-height: 60px; width: auto; margin-bottom: 10px;">
             <div class="invoice-title">Tax Invoice/Bill of Supply/Cash Memo</div>
           </div>
+        <div class="container">
+          
           
           <div class="header-info">
             <div class="header-left">
@@ -11973,9 +11974,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           <div class="signature-section" style="background-color: #FFFFFF; padding: 20px; border-radius: 8px; margin-top: 20px;">
             <div class="signature-box">
+              {{#if seller.pickupAddress.businessName}}
+                 <div class="bold" style="color: #000000">{{seller.pickupAddress.businessName}}</div>
+              {{else}}
+                <div class="bold" style="color: #000000">Lele Kart Retail Private Limited</div>
+              {{/if}}
+              <img src="https://drive.google.com/uc?export=view&id=1NC3MTl6qklBjamL3bhjRMdem6rQ0mB9F" alt="Authorized Signature" style="height: 60px; margin: 10px auto; display: block;" />
               <div class="bold">Authorized Signatory</div>
-             <img src="https://drive.google.com/uc?export=view&id=1NC3MTl6qklBjamL3bhjRMdem6rQ0mB9F" alt="Authorized Signature" style="height: 60px; margin: 10px auto; display: block;" />
-              <div class="signature-line"></div>
             </div>
           </div>
         </div>
