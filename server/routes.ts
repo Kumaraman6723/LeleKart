@@ -914,9 +914,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Access control checks
-      // 1. Allow if user is admin
-      // 2. Allow if order belongs to the current user (buyer access)
-      // 3. Allow if user is a seller with products in this order
       const isAdmin = req.user.role === "admin";
       const isBuyer = order.userId === req.user.id;
       const isSeller =
@@ -941,143 +938,197 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "User not found" });
       }
 
-      // Get seller details and addresses
-      const sellerId = orderItems[0].product.sellerId;
-      const seller = await storage.getUser(sellerId);
-      if (!seller) {
-        return res.status(404).json({ error: "Seller not found" });
-      }
-
-      // Get seller settings for pickup and billing addresses
-      const sellerSettings = await storage.getSellerSettings(sellerId);
-      let pickupAddress = null;
-      let billingAddress = null;
-
-      if (sellerSettings) {
-        try {
-          if (sellerSettings.pickupAddress) {
-            pickupAddress = JSON.parse(sellerSettings.pickupAddress);
-          }
-          if (sellerSettings.address) {
-            billingAddress = JSON.parse(sellerSettings.address);
-          }
-        } catch (err) {
-          console.error("Error parsing seller addresses:", err);
+      // Group order items by seller
+      const itemsBySeller = orderItems.reduce((acc, item) => {
+        const sellerId = item.product.sellerId;
+        if (!acc[sellerId]) {
+          acc[sellerId] = [];
         }
-      }
+        acc[sellerId].push(item);
+        return acc;
+      }, {} as Record<number, typeof orderItems>);
 
-      // Fallback addresses if not found in settings
-      if (!pickupAddress) {
-        pickupAddress = {
-          businessName: seller.name || "Lele Kart Retail Private Limited",
-          line1: seller.address || "123 Commerce Street",
-          line2: "",
-          city: "Mumbai",
-          state: "Maharashtra",
-          pincode: "400001",
-          phone: seller.phone || "Phone not available",
-        };
-      }
+      // Generate invoice for each seller
+      const sellerInvoices = await Promise.all(
+        Object.entries(itemsBySeller).map(async ([sellerId, sellerItems]) => {
+          const seller = await storage.getUser(parseInt(sellerId));
+          if (!seller) {
+            console.error(`Seller ${sellerId} not found`);
+            return null;
+          }
 
-      if (!billingAddress) {
-        billingAddress = {
-          line1: seller.address || "123 Commerce Street",
-          line2: "",
-          city: "Mumbai",
-          state: "Maharashtra",
-          pincode: "400001",
-          phone: seller.phone || "Phone not available",
-        };
-      }
+          // Get seller settings for pickup and billing addresses
+          const sellerSettings = await storage.getSellerSettings(
+            parseInt(sellerId)
+          );
+          let pickupAddress = null;
+          let billingAddress = null;
 
-      // Get product details for each order item
-      const orderItemsWithProducts = await Promise.all(
-        orderItems.map(async (item) => {
-          try {
-            const product = await storage.getProduct(item.productId);
-            return {
-              ...item,
-              product: product || {
-                id: item.productId,
-                name: "Product no longer available",
-                description: "This product has been removed from the catalog",
-                price: item.price,
-                gstRate: 0,
-              },
-            };
-          } catch (err) {
-            console.warn(`Failed to get product ${item.productId}:`, err);
-            return {
-              ...item,
-              product: {
-                id: item.productId,
-                name: "Product no longer available",
-                description: "This product has been removed from the catalog",
-                price: item.price,
-                gstRate: 0,
-              },
+          if (sellerSettings) {
+            try {
+              if (sellerSettings.pickupAddress) {
+                pickupAddress = JSON.parse(sellerSettings.pickupAddress);
+              }
+              if (sellerSettings.address) {
+                billingAddress = JSON.parse(sellerSettings.address);
+              }
+            } catch (err) {
+              console.error("Error parsing seller addresses:", err);
+            }
+          }
+
+          // Fallback addresses if not found in settings
+          if (!pickupAddress) {
+            pickupAddress = {
+              businessName: seller.name || "Lele Kart Retail Private Limited",
+              line1: seller.address || "123 Commerce Street",
+              line2: "",
+              city: "Mumbai",
+              state: "Maharashtra",
+              pincode: "400001",
+              phone: seller.phone || "Phone not available",
             };
           }
+
+          if (!billingAddress) {
+            billingAddress = {
+              line1: seller.address || "123 Commerce Street",
+              line2: "",
+              city: "Mumbai",
+              state: "Maharashtra",
+              pincode: "400001",
+              phone: seller.phone || "Phone not available",
+            };
+          }
+
+          // Get product details for each order item
+          const orderItemsWithProducts = await Promise.all(
+            sellerItems.map(async (item) => {
+              try {
+                const product = await storage.getProduct(item.productId);
+                return {
+                  ...item,
+                  product: product || {
+                    id: item.productId,
+                    name: "Product no longer available",
+                    description:
+                      "This product has been removed from the catalog",
+                    price: item.price,
+                    gstRate: 0,
+                  },
+                };
+              } catch (err) {
+                console.warn(`Failed to get product ${item.productId}:`, err);
+                return {
+                  ...item,
+                  product: {
+                    id: item.productId,
+                    name: "Product no longer available",
+                    description:
+                      "This product has been removed from the catalog",
+                    price: item.price,
+                    gstRate: 0,
+                  },
+                };
+              }
+            })
+          );
+
+          // Calculate subtotal for this seller's items
+          const subtotal = orderItemsWithProducts.reduce(
+            (sum, item) => sum + item.price * item.quantity,
+            0
+          );
+
+          // Format date properly
+          const formattedDate = new Date(order.date).toLocaleDateString(
+            "en-IN",
+            {
+              year: "numeric",
+              month: "long",
+              day: "numeric",
+            }
+          );
+
+          // Build the invoice data object for this seller
+          const invoiceData = {
+            order: {
+              ...order,
+              id: orderId,
+              orderNumber: orderId,
+              formattedDate,
+              formattedStatus:
+                order.status.charAt(0).toUpperCase() + order.status.slice(1),
+              subtotal,
+              items: orderItemsWithProducts,
+              shippingDetails:
+                typeof order.shippingDetails === "string"
+                  ? JSON.parse(order.shippingDetails)
+                  : order.shippingDetails,
+            },
+            user,
+            seller: {
+              ...seller,
+              pickupAddress,
+              billingAddress,
+            },
+            currentDate: new Date().toLocaleDateString("en-IN", {
+              year: "numeric",
+              month: "long",
+              day: "numeric",
+            }),
+          };
+
+          // Generate HTML for this seller's invoice
+          const invoiceHtml = await generateInvoiceHtml(invoiceData);
+          return {
+            sellerId: parseInt(sellerId),
+            sellerName: seller.name,
+            invoiceHtml,
+          };
         })
       );
 
-      // Calculate totals
-      const subtotal = orderItemsWithProducts.reduce(
-        (sum, item) => sum + item.price * item.quantity,
-        0
+      // Filter out any null results (failed invoice generations)
+      const validInvoices = sellerInvoices.filter(
+        (invoice): invoice is NonNullable<typeof invoice> => invoice !== null
       );
 
-      // Format date properly
-      const formattedDate = new Date(order.date).toLocaleDateString("en-IN", {
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      });
-
-      // Build the invoice data object
-      const invoiceData = {
-        order: {
-          ...order,
-          id: orderId, // Ensure ID is available
-          orderNumber: orderId, // For template compatibility
-          formattedDate,
-          formattedStatus:
-            order.status.charAt(0).toUpperCase() + order.status.slice(1),
-          subtotal,
-          items: orderItemsWithProducts,
-          shippingDetails:
-            typeof order.shippingDetails === "string"
-              ? JSON.parse(order.shippingDetails)
-              : order.shippingDetails,
-        },
-        user,
-        seller: {
-          ...seller,
-          pickupAddress,
-          billingAddress,
-        },
-        currentDate: new Date().toLocaleDateString("en-IN", {
-          year: "numeric",
-          month: "long",
-          day: "numeric",
-        }),
-      };
-
-      // Generate the invoice HTML from our template
-      const invoiceHtml = await generateInvoiceHtml(invoiceData);
-
       if (format === "html") {
-        console.log(`Sending invoice as HTML`);
-        // Set content type to HTML and send the rendered invoice
+        console.log(`Sending invoices as HTML`);
+        // Set content type to HTML and send the rendered invoices
         res.setHeader("Content-Type", "text/html");
-        res.send(invoiceHtml);
+        // Combine all invoice HTMLs with a page break between them
+        const combinedHtml = validInvoices
+          .map(
+            (invoice) => `
+            <div class="seller-invoice">
+              <h2>Invoice from ${invoice.sellerName}</h2>
+              ${invoice.invoiceHtml}
+            </div>
+            <div style="page-break-after: always;"></div>
+          `
+          )
+          .join("");
+        res.send(combinedHtml);
       } else {
-        console.log(`Generating invoice as PDF`);
+        console.log(`Generating combined invoice as PDF`);
         // Generate PDF using our utility from the imported pdfGenerator
+        const combinedHtml = validInvoices
+          .map(
+            (invoice) => `
+            <div class="seller-invoice">
+              <h2>Invoice from ${invoice.sellerName}</h2>
+              ${invoice.invoiceHtml}
+            </div>
+            <div style="page-break-after: always;"></div>
+          `
+          )
+          .join("");
         await pdfGenerator.generatePdf(
           res,
-          invoiceHtml,
-          `Invoice-${orderId}.pdf`
+          combinedHtml,
+          `Combined-Invoice-${orderId}.pdf`
         );
       }
     } catch (error) {
@@ -11671,13 +11722,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
             border: 2px solid #000;
           }
           
-          .invoice-title {
+          .invoice-header {
             text-align: center;
-            font-weight: bold;
-            font-size: 16px;
             padding: 10px;
             border-bottom: 2px solid #000;
             background-color: #f5f5f5;
+          }
+          
+          .invoice-logo {
+            max-width: 150px;
+            margin: 0 auto;
+          }
+          
+          .invoice-title {
+            font-weight: bold;
+            font-size: 16px;
+            margin-top: 10px;
           }
           
           .header-info {
@@ -11798,15 +11858,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       </head>
       <body>
         <div class="container">
-          <div class="invoice-title">
-            Tax Invoice
+          <div class="invoice-header" style="background-color: #FFFFFF; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+           <img src="https://drive.google.com/uc?export=view&id=138zcFxrDkzZoVOkDd1ABPHSdbl31n-Ar" alt="LeleKart Logo" class="invoice-logo" style="max-height: 60px; width: auto; margin-bottom: 10px;">
+            <div class="invoice-title">Tax Invoice/Bill of Supply/Cash Memo</div>
           </div>
           
           <div class="header-info">
             <div class="header-left">
               <div><span class="bold">Invoice No:</span> LK-{{order.id}}</div>
-            </div>
-            <div class="header-right">
+        
               <div><span class="bold">Invoice Date:</span> {{currentDate}}</div>
               <div><span class="bold">Order No:</span> {{order.orderNumber}}</div>
             </div>
@@ -11814,7 +11874,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           <div class="address-section">
             <div class="bill-to">
-              <div class="bold">Bill To</div>
+              <div class="bold">Billing Address</div>
               <br>
               {{#if order.shippingDetails}}
                 <div>{{user.name}}</div>
@@ -11828,7 +11888,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               {{/if}}
             </div>
             <div class="ship-to">
-              <div class="bold">Ship To</div>
+              <div class="bold">Shipping Address</div>
               <br>
               {{#if order.shippingDetails}}
                 <div>{{user.name}}</div>
@@ -11911,11 +11971,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
             </tbody>
           </table>
           
-          <div class="signature-section">
-            <div class="bold">Authorized signatory</div>
-            <img src="https://drive.google.com/uc?export=view&id=10VFdU73xSPpDMY7Uu83dBYwuQvqNqWaW" alt="Authorized Signature" style="height:60px; margin: 10px auto; display: block;" />
-            <div class="signature-line">
-              Authorized Signatory
+          <div class="signature-section" style="background-color: #FFFFFF; padding: 20px; border-radius: 8px; margin-top: 20px;">
+            <div class="signature-box">
+              <div class="bold">Authorized Signatory</div>
+             <img src="https://drive.google.com/uc?export=view&id=1NC3MTl6qklBjamL3bhjRMdem6rQ0mB9F" alt="Authorized Signature" style="height: 60px; margin: 10px auto; display: block;" />
+              <div class="signature-line"></div>
             </div>
           </div>
         </div>
