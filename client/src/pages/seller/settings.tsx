@@ -624,7 +624,7 @@ export default function SellerSettingsPage() {
   const saveBillingInfo = async () => {
     setIsSavingBillingInfo(true);
     try {
-      const response = await fetch("/api/seller/settings/tax-info", {
+      const response = await fetch("/api/seller/settings", {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -660,7 +660,7 @@ export default function SellerSettingsPage() {
   const saveBankInfo = async () => {
     setIsSavingBankInfo(true);
     try {
-      const response = await fetch("/api/seller/settings/tax-info", {
+      const response = await fetch("/api/seller/settings", {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",

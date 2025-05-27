@@ -209,12 +209,9 @@ export async function updateNotificationPreferencesHandler(
 
     // If this is not the seller themselves, deny access
     if (req.user?.id !== sellerId) {
-      return res
-        .status(403)
-        .json({
-          error:
-            "You do not have permission to update notification preferences",
-        });
+      return res.status(403).json({
+        error: "You do not have permission to update notification preferences",
+      });
     }
 
     const preferencesSchema = z.object({
@@ -281,11 +278,9 @@ export async function updatePersonalInfoHandler(req: Request, res: Response) {
 
     // If this is not the seller themselves, deny access (even admins shouldn't update this)
     if (req.user?.id !== sellerId) {
-      return res
-        .status(403)
-        .json({
-          error: "You do not have permission to update personal information",
-        });
+      return res.status(403).json({
+        error: "You do not have permission to update personal information",
+      });
     }
 
     // Validate the personal info data
@@ -348,11 +343,9 @@ export async function updateAddressHandler(req: Request, res: Response) {
 
     // If this is not the seller themselves, deny access
     if (req.user?.id !== sellerId) {
-      return res
-        .status(403)
-        .json({
-          error: "You do not have permission to update address information",
-        });
+      return res.status(403).json({
+        error: "You do not have permission to update address information",
+      });
     }
 
     // Validate the address data
@@ -416,11 +409,9 @@ export async function updateStoreHandler(req: Request, res: Response) {
 
     // If this is not the seller themselves, deny access
     if (req.user?.id !== sellerId) {
-      return res
-        .status(403)
-        .json({
-          error: "You do not have permission to update store information",
-        });
+      return res.status(403).json({
+        error: "You do not have permission to update store information",
+      });
     }
 
     // Validate the store data
@@ -483,6 +474,78 @@ export async function updateStoreHandler(req: Request, res: Response) {
     return res.status(200).json(updatedSettings);
   } catch (error) {
     console.error("Error updating store information:", error);
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: error.errors });
+    }
+    return res.status(500).json({ error: "Internal server error" });
+  }
+}
+
+// Update tax information
+export async function updateTaxInfoHandler(req: Request, res: Response) {
+  try {
+    const sellerId = parseInt(
+      req.params.sellerId || req.user?.id?.toString() || "0"
+    );
+
+    if (!sellerId) {
+      return res.status(400).json({ error: "Seller ID is required" });
+    }
+
+    // If this is not the seller themselves, deny access
+    if (req.user?.id !== sellerId) {
+      return res.status(403).json({
+        error: "You do not have permission to update tax information",
+      });
+    }
+
+    const { taxInformation } = req.body;
+
+    if (!taxInformation) {
+      return res.status(400).json({ error: "Tax information is required" });
+    }
+
+    // Get current settings
+    const currentSettings = await storage.getSellerSettings(sellerId);
+
+    // Parse current tax info or create default if none exist
+    let currentTaxInfo = {};
+    if (currentSettings?.taxInformation) {
+      try {
+        currentTaxInfo = JSON.parse(currentSettings.taxInformation);
+      } catch (e) {
+        console.error("Error parsing existing tax info:", e);
+      }
+    }
+
+    // Parse new tax info
+    let newTaxInfo;
+    try {
+      newTaxInfo =
+        typeof taxInformation === "string"
+          ? JSON.parse(taxInformation)
+          : taxInformation;
+    } catch (e) {
+      return res.status(400).json({ error: "Invalid tax information format" });
+    }
+
+    // Merge with new tax info
+    const updatedTaxInfo = {
+      ...currentTaxInfo,
+      ...newTaxInfo,
+    };
+
+    // Update settings
+    const updatedSettings = await storage.createOrUpdateSellerSettings(
+      sellerId,
+      {
+        taxInformation: JSON.stringify(updatedTaxInfo),
+      }
+    );
+
+    return res.status(200).json(updatedSettings);
+  } catch (error) {
+    console.error("Error updating tax information:", error);
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: error.errors });
     }

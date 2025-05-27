@@ -963,6 +963,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           );
           let pickupAddress = null;
           let billingAddress = null;
+          let taxInformation = null;
 
           if (sellerSettings) {
             try {
@@ -972,21 +973,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
               if (sellerSettings.address) {
                 billingAddress = JSON.parse(sellerSettings.address);
               }
+              if (sellerSettings.taxInformation) {
+                taxInformation = JSON.parse(sellerSettings.taxInformation);
+              }
             } catch (err) {
-              console.error("Error parsing seller addresses:", err);
+              console.error("Error parsing seller settings:", err);
             }
           }
 
           // Fallback addresses if not found in settings
           if (!pickupAddress) {
             pickupAddress = {
-              businessName: seller.name || "Lele Kart Retail Private Limited",
+              businessName:
+                taxInformation?.businessName ||
+                seller.name ||
+                "Lele Kart Retail Private Limited",
               line1: seller.address || "123 Commerce Street",
               line2: "",
               city: "Mumbai",
               state: "Maharashtra",
               pincode: "400001",
               phone: seller.phone || "Phone not available",
+              gstin: taxInformation?.gstin || "GSTIN not available",
             };
           }
 
@@ -1071,6 +1079,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               ...seller,
               pickupAddress,
               billingAddress,
+              taxInformation,
             },
             currentDate: new Date().toLocaleDateString("en-IN", {
               year: "numeric",
@@ -10478,6 +10487,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     await settingsHandlers.updatePickupAddressHandler(req, res);
   });
 
+  app.put("/api/seller/settings/tax-info", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (req.user.role !== "seller")
+      return res.status(403).json({ error: "Not authorized" });
+
+    await settingsHandlers.updateTaxInfoHandler(req, res);
+  });
+
   app.put("/api/seller/settings/store", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     if (req.user.role !== "seller")
@@ -11775,7 +11792,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
           
           .ship-to {
-            border-left: 1px solid #000;
             text-align: right;
             float: right;
           }
@@ -11783,7 +11799,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .business-section {
             display: flex;
             border-bottom: 1px solid #000;
-            min-height: 120px;
+            min-height: 140px;
             clear: both;
           }
           
@@ -11799,7 +11815,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
           
           .ship-from {
-            border-left: 1px solid #000;
             text-align: right;
             float: right;
           }
@@ -11908,18 +11923,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
             <div class="bill-from">
               <div class="bold">Bill From</div>
               <br>
-              {{#if seller.pickupAddress}}
-                <div class="bold">{{seller.pickupAddress.businessName}}</div>
-                <div>{{seller.pickupAddress.line1}}</div>
-                {{#if seller.pickupAddress.line2}}<div>{{seller.pickupAddress.line2}}</div>{{/if}}
-                <div>{{seller.pickupAddress.city}}, {{seller.pickupAddress.state}} {{seller.pickupAddress.pincode}}</div>
-                {{#if seller.pickupAddress.gstin}}<div>GSTIN: {{seller.pickupAddress.gstin}}</div>{{/if}}
-                <div>Phone: {{seller.pickupAddress.phone}}</div>
+              {{#if seller.billingAddress}}
+              <div class="bold">{{seller.pickupAddress.businessName}}</div>
+                <div>{{seller.billingAddress.line1}}</div>
+                {{#if seller.billingAddress.line2}}<div>{{seller.billingAddress.line2}}</div>{{/if}}
+                <div>{{seller.billingAddress.city}}, {{seller.billingAddress.state}} {{seller.billingAddress.pincode}}</div>
+                <div>GSTIN: {{seller.taxInformation.gstin}}</div>
+                <div>PAN: {{seller.taxInformation.panNumber}}</div>
+               <div>Phone: {{seller.pickupAddress.phone}}</div>
               {{else}}
-                <div class="bold">Lele Kart Retail Private Limited</div>
-                <div>123 Commerce Street</div>
+                <div class="bold">{{seller.taxInformation.businessName}}</div>
+                <div>{{seller.address}}</div>
                 <div>Mumbai, Maharashtra 400001</div>
-                <div>GSTIN: 27AABCU9603R1ZX</div>
+                {{#if seller.taxInformation.gstin}}<div>GSTIN: {{seller.taxInformation.gstin}}</div>{{/if}}
               {{/if}}
             </div>
             <div class="ship-from">
@@ -11930,13 +11946,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 <div>{{seller.pickupAddress.line1}}</div>
                 {{#if seller.pickupAddress.line2}}<div>{{seller.pickupAddress.line2}}</div>{{/if}}
                 <div>{{seller.pickupAddress.city}}, {{seller.pickupAddress.state}} {{seller.pickupAddress.pincode}}</div>
-                {{#if seller.pickupAddress.gstin}}<div>GSTIN: {{seller.pickupAddress.gstin}}</div>{{/if}}
+                <div>GSTIN: {{seller.taxInformation.gstin}}</div>
+                <div>PAN: {{seller.taxInformation.panNumber}}</div>
                 <div>Phone: {{seller.pickupAddress.phone}}</div>
               {{else}}
-                <div class="bold">Lele Kart Retail Private Limited</div>
-                <div>Warehouse Address: 123 Commerce Street</div>
+                <div class="bold">{{seller.taxInformation.businessName}}</div>
+                <div>Warehouse Address: {{seller.address}}</div>
                 <div>Mumbai, Maharashtra 400001</div>
-                <div>If warehouse address isn't available then fetch business name</div>
+                {{#if seller.taxInformation.gstin}}<div>GSTIN: {{seller.taxInformation.gstin}}</div>{{/if}}
               {{/if}}
             </div>
           </div>
@@ -11972,14 +11989,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
             </tbody>
           </table>
           
-          <div class="signature-section" style="background-color: #FFFFFF; padding: 20px; border-radius: 8px; margin-top: 20px;">
-            <div class="signature-box">
+          <div class="signature-section" style="background-color: #FFFFFF; padding: 20px; border-radius: 8px; margin-top: 20px; text-align: right;">
+            <div class="signature-box" style="display: inline-block; text-align: right;">
               {{#if seller.pickupAddress.businessName}}
                  <div class="bold" style="color: #000000">{{seller.pickupAddress.businessName}}</div>
               {{else}}
-                <div class="bold" style="color: #000000">Lele Kart Retail Private Limited</div>
+                <div class="bold" style="color: #000000">{{seller.taxInformation.businessName}}</div>
               {{/if}}
-              <img src="https://drive.google.com/uc?export=view&id=1NC3MTl6qklBjamL3bhjRMdem6rQ0mB9F" alt="Authorized Signature" style="height: 60px; margin: 10px auto; display: block;" />
+              <img src="https://drive.google.com/uc?export=view&id=1NC3MTl6qklBjamL3bhjRMdem6rQ0mB9F" alt="Authorized Signature" style="height: 60px; margin: 10px 0 10px auto; display: block;" />
               <div class="bold">Authorized Signatory</div>
             </div>
           </div>
@@ -12061,6 +12078,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             display: flex;
             border-bottom: 1px solid #000;
           }
+            
           
           .ship-from, .ship-to {
             width: 50%;
@@ -12068,7 +12086,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
           
           .ship-from {
-            border-right: 1px solid #000;
+            box-sizing: border-box;
+            text-align: right;
+            float: right;
           }
           
           .order-details {
