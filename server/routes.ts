@@ -11877,6 +11877,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       );
 
+      // Function to convert image URL to base64
+      async function getBase64FromUrl(url: string): Promise<string> {
+        try {
+          const response = await fetch(url);
+          const buffer = await response.arrayBuffer();
+          const base64 = Buffer.from(buffer).toString('base64');
+          const mimeType = response.headers.get('content-type') || 'image/png';
+          return `data:${mimeType};base64,${base64}`;
+        } catch (error) {
+          console.error('Error converting image to base64:', error);
+          return ''; // Return empty string if conversion fails
+        }
+      }
+
+      // Convert logo and signature images to base64
+      const logoUrl = "https://drive.google.com/uc?export=view&id=138zcFxrDkzZoVOkDd1ABPHSdbl31n-Ar";
+      const signatureUrl = data.seller?.pickupAddress?.authorizationSignature || 
+                          "https://drive.google.com/uc?export=view&id=1NC3MTl6qklBjamL3bhjRMdem6rQ0mB9F";
+
+      const [logoBase64, signatureBase64] = await Promise.all([
+        getBase64FromUrl(logoUrl),
+        getBase64FromUrl(signatureUrl)
+      ]);
+
       // Generate QR code with invoice details
       const qrData = `https://lelekart.in/orders/${data.order.id}`;
 
@@ -11896,7 +11920,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         );
       });
 
-      // Invoice template with amount in words
+      // Invoice template with fixed header alignment
       const invoiceTemplate = `<!DOCTYPE html>
 <html>
 <head>
@@ -11932,34 +11956,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
       margin-bottom: 0;
       border-bottom: 1px solid #eee;
       page-break-inside: avoid;
+      display: table;
+      width: 100%;
+      box-sizing: border-box;
     }
     
-    .invoice-logo {
-      height: 60px;
-      width: auto;
-      max-width: 200px;
-      object-fit: contain;
+    .header-left {
+      display: table-cell;
+      width: 35%;
+      vertical-align: middle;
     }
     
     .header-right {
+      display: table-cell;
+      width: 65%;
+      vertical-align: middle;
       text-align: right;
+    }
+    
+    .invoice-logo {
+      height: 75px;
+      width: auto;
+      max-width: 400px;
+      object-fit: contain;
     }
     
     .invoice-title {
       font-weight: bold;
       font-size: 16px;
       color: #2c3e50;
-      margin: 0 0 5px 0;
+      margin: 0 0 10px 0;
     }
     
-    .invoice-subtitle {
-      font-size: 12px;
-      margin-bottom: 8px;
+    .header-info-table {
+      border-collapse: collapse;
+      float: right;
+      clear: both;
     }
     
-    .header-info {
+    .header-info-table td {
+      padding: 2px 0;
       font-size: 11px;
       line-height: 1.3;
+    }
+    
+    .header-info-table .label-col {
+      text-align: left;
+      padding-right: 15px;
+      white-space: nowrap;
+      min-width: 80px;
+    }
+    
+    .header-info-table .value-col {
+      text-align: left;
+      white-space: nowrap;
     }
     
     .address-section {
@@ -12134,37 +12184,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
       .signature-section {
         page-break-inside: avoid;
       }
+      
+      .header-info-table {
+        page-break-inside: avoid;
+      }
+    }
+
+    /* Font loading fallbacks for consistent rendering */
+    @font-face {
+      font-family: 'Arial';
+      src: local('Arial'), local('Helvetica Neue'), local('Helvetica'), local('sans-serif');
     }
   </style>
 </head>
 <body>
   <div class="container">
-    <!-- Updated Header Section -->
-    <div class="invoice-header clearfix">
-      <div style="float: left; width: 15%;">
-        <img src="https://drive.google.com/uc?export=view&id=138zcFxrDkzZoVOkDd1ABPHSdbl31n-Ar" alt="LeleKart Logo" class="invoice-logo">
+    <!-- Fixed Header Section with proper alignment -->
+    <div class="invoice-header">
+      <div class="header-left">
+        <img src="${logoBase64}" alt="LeleKart Logo" class="invoice-logo">
       </div>
       
-      <div style="float: right; width: 65%; text-align: right;">
-        <div style="margin-bottom: 5px;">
-          <span class="invoice-title">Tax Invoice/Bill of Supply/Cash Memo</span><br>
-         
-        </div>
+      <div class="header-right">
+        <div class="invoice-title">Tax Invoice/Bill of Supply/Cash Memo</div>
         
-        <div class="header-info">
-          <div>
-            <span class="bold">Invoice Date:</span> 
-            {{formatDate order.date " DD MMM YYYY,dddd"}}
-          </div>
-          <div>
-            <span class="bold">Invoice No:</span> 
-            LK-{{order.id}}
-          </div>
-          <div>
-            <span class="bold">Order No:</span> 
-            {{order.orderNumber}}
-          </div>
-        </div>
+        <table class="header-info-table">
+          <tr>
+            <td class="label-col bold">Invoice Date:</td>
+            <td class="value-col">{{formatDate order.date " DD MMM YYYY,dddd"}}</td>
+          </tr>
+          <tr>
+            <td class="label-col bold">Invoice No:</td>
+            <td class="value-col">LK-{{order.id}}</td>
+          </tr>
+          <tr>
+            <td class="label-col bold">Order No:</td>
+            <td class="value-col">{{order.orderNumber}}</td>
+          </tr>
+        </table>
       </div>
     </div>
     
@@ -12285,11 +12342,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             <div class="bold">Lele Kart Retail Private Limited</div>
           {{/if}}
           <img 
-            src="{{#if seller.pickupAddress.authorizationSignature}}
-              {{seller.pickupAddress.authorizationSignature}}
-            {{else}}
-              https://drive.google.com/uc?export=view&id=1NC3MTl6qklBjamL3bhjRMdem6rQ0mB9F
-            {{/if}}" 
+            src="${signatureBase64}"
             alt="Authorized Signature"
           />
           <div class="bold">Authorized Signatory</div>
@@ -12320,9 +12373,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   </div>
 </body>
 </html>`;
+
       handlebars.registerHelper("calculateTotal", function (items) {
         return items.reduce((sum, item) => sum + item.price * item.quantity, 0);
       });
+
       // Additional helpers for math operations
       handlebars.registerHelper("multiply", function (a: number, b: number) {
         return a * b;
@@ -12335,6 +12390,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       handlebars.registerHelper("subtract", function (a: number, b: number) {
         return a - b;
       });
+
+      // Add formatDate helper if not already present
+      handlebars.registerHelper(
+        "formatDate",
+        function (date: string, format: string) {
+          // This is a placeholder - you'll need to implement proper date formatting
+          // or use a library like moment.js or date-fns
+          const d = new Date(date);
+          return d.toLocaleDateString("en-IN", {
+            weekday: "long",
+            year: "numeric",
+            month: "short",
+            day: "2-digit",
+          });
+        }
+      );
 
       const template = handlebars.compile(invoiceTemplate);
       return template(data);
