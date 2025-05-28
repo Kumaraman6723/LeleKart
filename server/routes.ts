@@ -11903,32 +11903,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
   <meta charset="utf-8">
   <title>Tax Invoice</title>
   <style>
+    @page {
+      size: A4;
+      margin: 5mm;
+    }
+    
     body {
       font-family: Arial, sans-serif;
-      font-size: 12px;
-      line-height: 1.4;
+      font-size: 11px;
+      line-height: 1.3;
       color: #333;
-      margin: 20px;
+      margin: 0;
       padding: 0;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
     }
     
     .container {
-      max-width: 800px;
+      max-width: 100%;
       margin: 0 auto;
-      border: 2px solid #000;
+      border: 1px solid #000;
+      page-break-inside: avoid;
     }
     
     .invoice-header {
-      padding: 15px;
+      padding: 10px;
       background-color: #ffffff;
       margin-bottom: 0;
       border-bottom: 1px solid #eee;
+      page-break-inside: avoid;
     }
     
     .invoice-logo {
-      height:75px;
-      max-width: 420px;
+      height: 60px;
       width: auto;
+      max-width: 200px;
+      object-fit: contain;
     }
     
     .header-right {
@@ -11937,31 +11947,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     
     .invoice-title {
       font-weight: bold;
-      font-size: 18px;
+      font-size: 16px;
       color: #2c3e50;
       margin: 0 0 5px 0;
     }
     
     .invoice-subtitle {
-      font-size: 14px;
-      margin-bottom: 10px;
+      font-size: 12px;
+      margin-bottom: 8px;
     }
     
     .header-info {
-      font-size: 12px;
-      line-height: 1.4;
+      font-size: 11px;
+      line-height: 1.3;
     }
     
     .address-section {
       overflow: hidden;
-      font-size: 12px;
+      font-size: 11px;
+      padding: 8px;
+      page-break-inside: avoid;
     }
     
     .bill-to, .ship-to {
-      width: 50%;
-      padding: 12px;
+      width: 48%;
+      padding: 8px;
       box-sizing: border-box;
-      min-height: 120px;
+      min-height: 100px;
       vertical-align: top;
     }
     
@@ -11975,14 +11987,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     
     .business-section {
       overflow: hidden;
-      font-size: 12px;
+      font-size: 11px;
+      padding: 8px;
+      page-break-inside: avoid;
     }
     
     .bill-from, .ship-from {
-      width: 50%;
-      padding: 12px;
+      width: 48%;
+      padding: 8px;
       box-sizing: border-box;
-      min-height: 100px;
+      min-height: 90px;
       vertical-align: top;
     }
     
@@ -11997,49 +12011,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
     table.items {
       width: 100%;
       border-collapse: collapse;
-      border-bottom: 2px solid #000;
-      font-size: 12px;
+      border-bottom: 1px solid #000;
+      font-size: 11px;
+      page-break-inside: avoid;
     }
     
     table.items th {
       background-color: #f8f9fa;
       border: 1px solid #000;
-      padding: 10px 6px;
+      padding: 6px 4px;
       text-align: center;
       font-weight: bold;
-      font-size: 12px;
+      font-size: 11px;
       color: #2c3e50;
     }
     
     table.items td {
       border: 1px solid #000;
-      padding: 8px 6px;
+      padding: 6px 4px;
       text-align: center;
-      font-size: 12px;
+      font-size: 11px;
       vertical-align: top;
     }
     
     .description-cell {
       text-align: left !important;
-      max-width: 200px;
+      max-width: 180px;
       word-wrap: break-word;
     }
     
     .amount-in-words {
       margin: 0;
-      padding: 10px 15px;
+      padding: 8px;
       background-color: #ffffff;
       font-family: 'Arial', sans-serif;
-      font-size: 12px;
-      line-height: 1.5;
+      font-size: 11px;
+      line-height: 1.3;
       color: #2c3e50;
+      page-break-inside: avoid;
     }
     
     .signature-section {
       background-color: #ffffff;
-      padding: 15px;
-      border-radius: 8px;
+      padding: 8px;
+      border-radius: 4px;
       overflow: hidden;
+      page-break-inside: avoid;
     }
     
     .signature-content {
@@ -12055,30 +12072,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     
     .qr-section img,
     .qr-section svg {
-      max-width: 80px;
-      max-height: 80px;
+      max-width: 70px;
+      max-height: 70px;
     }
     
     .signature-box {
       float: right;
       width: 60%;
       text-align: right;
-      font-size: 12px;
+      font-size: 11px;
       color: #2c3e50;
     }
     
     .signature-box .bold {
-      font-size: 13px;
-      margin-bottom: 5px;
+      font-size: 12px;
+      margin-bottom: 4px;
       font-weight: 600;
       color: #000000;
     }
     
     .signature-box img {
-      height: 50px;
-      margin: 8px 0;
+      height: 40px;
+      margin: 6px 0;
       display: block;
       margin-left: auto;
+      object-fit: contain;
     }
     
     .bold {
@@ -12087,8 +12105,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
     
     .taxes-cell {
-      font-size: 11px;
-      line-height: 1.3;
+      font-size: 10px;
+      line-height: 1.2;
     }
 
     /* Clear floats */
@@ -12096,6 +12114,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
       content: "";
       display: table;
       clear: both;
+    }
+
+    /* Print-specific styles */
+    @media print {
+      body {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      
+      .container {
+        page-break-inside: avoid;
+      }
+      
+      table.items {
+        page-break-inside: avoid;
+      }
+      
+      .signature-section {
+        page-break-inside: avoid;
+      }
     }
   </style>
 </head>
