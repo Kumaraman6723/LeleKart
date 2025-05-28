@@ -2852,8 +2852,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           return {
             ...productWithGst,
-            sellerName: "Unknown Seller",
-            seller: { username: "Unknown Seller" },
+            sellerName: "Lele Kart Retail Private Limited",
+            seller: { username: "Lele Kart Retail Private Limited" },
           };
         })
       );
@@ -11919,18 +11919,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
     
     .invoice-header {
-      padding: 2px;
+      padding: 15px;
       background-color: #ffffff;
-      border-radius: 2px;
       margin-bottom: 0;
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 20px;
+      border-bottom: 1px solid #eee;
     }
     
     .invoice-logo {
-      max-height: 40px;
+      height:75px;
+      max-width: 420px;
       width: auto;
     }
     
@@ -11940,23 +11937,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     
     .invoice-title {
       font-weight: bold;
-      font-size: 16px;
+      font-size: 18px;
       color: #2c3e50;
-      margin: 0 0 10px 0;
+      margin: 0 0 5px 0;
+    }
+    
+    .invoice-subtitle {
+      font-size: 14px;
+      margin-bottom: 10px;
     }
     
     .header-info {
-      padding: 12px 15px;
       font-size: 12px;
-      text-align: right;
-    }
-    
-    .header-left {
-      text-align: right;
+      line-height: 1.4;
     }
     
     .address-section {
-      
       overflow: hidden;
       font-size: 12px;
     }
@@ -11978,7 +11974,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
     
     .business-section {
-   
       overflow: hidden;
       font-size: 12px;
     }
@@ -12034,7 +12029,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       margin: 0;
       padding: 10px 15px;
       background-color: #ffffff;
-    
       font-family: 'Arial', sans-serif;
       font-size: 12px;
       line-height: 1.5;
@@ -12107,15 +12101,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
 </head>
 <body>
   <div class="container">
-    <div class="invoice-header">
-      <img src="https://drive.google.com/uc?export=view&id=138zcFxrDkzZoVOkDd1ABPHSdbl31n-Ar" alt="LeleKart Logo" class="invoice-logo">
-      <div class="header-right">
-        <div class="invoice-title">Tax Invoice/Bill of Supply/Cash Memo</div>
+    <!-- Updated Header Section -->
+    <div class="invoice-header clearfix">
+      <div style="float: left; width: 15%;">
+        <img src="https://drive.google.com/uc?export=view&id=138zcFxrDkzZoVOkDd1ABPHSdbl31n-Ar" alt="LeleKart Logo" class="invoice-logo">
+      </div>
+      
+      <div style="float: right; width: 65%; text-align: right;">
+        <div style="margin-bottom: 5px;">
+          <span class="invoice-title">Tax Invoice/Bill of Supply/Cash Memo</span><br>
+         
+        </div>
+        
         <div class="header-info">
-          <div class="header-left">
-            <div><span class="bold">Invoice Date:</span> {{formatDate order.date " DD MMM YYYY,dddd"}}</div>
-            <div><span class="bold">Invoice No:</span> LK-{{order.id}}</div>
-            <div><span class="bold">Order No:</span> {{order.orderNumber}}</div>
+          <div>
+            <span class="bold">Invoice Date:</span> 
+            {{formatDate order.date " DD MMM YYYY,dddd"}}
+          </div>
+          <div>
+            <span class="bold">Invoice No:</span> 
+            LK-{{order.id}}
+          </div>
+          <div>
+            <span class="bold">Order No:</span> 
+            {{order.orderNumber}}
           </div>
         </div>
       </div>
@@ -12219,7 +12228,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     </table>
     
     <div class="amount-in-words">
-      <span style="font-weight: 600; color: #2c3e50;">Amount in words:</span>
+      <span class="bold">Amount in words:</span>
       <span style="font-style: italic; margin-left: 5px;">{{amountInWords (calculateTotal order.items)}} Only</span>
     </div>
     
@@ -12235,7 +12244,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           {{#if seller.pickupAddress.businessName}}
             <div class="bold">{{seller.pickupAddress.businessName}}</div>
           {{else}}
-            <div class="bold">{{seller.taxInformation.businessName}}</div>
+            <div class="bold">Lele Kart Retail Private Limited</div>
           {{/if}}
           <img 
             src="{{#if seller.pickupAddress.authorizationSignature}}
