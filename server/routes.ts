@@ -1132,7 +1132,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .map(
             (invoice) => `
             <div class="seller-invoice">
-              <h2>Invoice from ${invoice.sellerName}</h2>
+             
               ${invoice.invoiceHtml}
             </div>
             <div style="page-break-after: always;"></div>
@@ -1147,7 +1147,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .map(
             (invoice) => `
             <div class="seller-invoice">
-              <h2>Invoice from ${invoice.sellerName}</h2>
+              
               ${invoice.invoiceHtml}
             </div>
             <div style="page-break-after: always;"></div>
@@ -11882,23 +11882,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         try {
           const response = await fetch(url);
           const buffer = await response.arrayBuffer();
-          const base64 = Buffer.from(buffer).toString('base64');
-          const mimeType = response.headers.get('content-type') || 'image/png';
+          const base64 = Buffer.from(buffer).toString("base64");
+          const mimeType = response.headers.get("content-type") || "image/png";
           return `data:${mimeType};base64,${base64}`;
         } catch (error) {
-          console.error('Error converting image to base64:', error);
-          return ''; // Return empty string if conversion fails
+          console.error("Error converting image to base64:", error);
+          return ""; // Return empty string if conversion fails
         }
       }
 
       // Convert logo and signature images to base64
-      const logoUrl = "https://drive.google.com/uc?export=view&id=138zcFxrDkzZoVOkDd1ABPHSdbl31n-Ar";
-      const signatureUrl = data.seller?.pickupAddress?.authorizationSignature || 
-                          "https://drive.google.com/uc?export=view&id=1NC3MTl6qklBjamL3bhjRMdem6rQ0mB9F";
+      const logoUrl =
+        "https://drive.google.com/uc?export=view&id=1LTlPnVbtn6oiDsYoVX7-umnZH5JnWZBN";
+
+      const signatureUrl =
+        data.seller?.pickupAddress?.authorizationSignature ||
+        "https://drive.google.com/uc?export=view&id=1NC3MTl6qklBjamL3bhjRMdem6rQ0mB9F";
 
       const [logoBase64, signatureBase64] = await Promise.all([
         getBase64FromUrl(logoUrl),
-        getBase64FromUrl(signatureUrl)
+        getBase64FromUrl(signatureUrl),
       ]);
 
       // Generate QR code with invoice details
@@ -11964,21 +11967,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     .header-left {
       display: table-cell;
       width: 35%;
-      vertical-align: middle;
+      vertical-align: top;
+      padding-top: 20px;
     }
     
     .header-right {
       display: table-cell;
       width: 65%;
-      vertical-align: middle;
+      vertical-align: top;
       text-align: right;
     }
     
     .invoice-logo {
-      height: 75px;
-      width: auto;
-      max-width: 400px;
+      max-height: 75px;
+      margin-top: 10px;
+      height: 60px;
+      max-width: 300px;
       object-fit: contain;
+      margin-bottom: 15px;
     }
     
     .invoice-title {
@@ -11986,12 +11992,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       font-size: 16px;
       color: #2c3e50;
       margin: 0 0 10px 0;
+      text-align: right;
     }
     
     .header-info-table {
       border-collapse: collapse;
       float: right;
       clear: both;
+      margin-top: 0;
     }
     
     .header-info-table td {
@@ -12107,6 +12115,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       border-radius: 4px;
       overflow: hidden;
       page-break-inside: avoid;
+      margin-bottom: 2px;
     }
     
     .signature-content {
@@ -12349,26 +12358,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
         </div>
       </div>
       <!-- Declaration section inside container -->
-      <div style="padding: 12px; font-size: 10px; line-height: 1.1; color: #333; background-color: #f9f9f9; border-top: 1px solid #000;">
-        <div style="display: flex; justify-content: space-between; gap: 10px;">
-          <div style="flex: 1;">
-            <div style="font-weight: bold; font-size: 12px; margin-bottom: 2px; color: #2c3e50;">DECLARATION</div>
-            <div style="margin-bottom: 4px;">The goods sold as part of this shipment are intended for end-user consumption and are not for retail sale</div>
+      <div style="padding: 12px; font-size: 10px; line-height: 1.4; color: #333; background-color: #f9f9f9; border-top: 1px solid #000; margin-top: 2px; max-width: 800px;">
+        <div style="display: flex; justify-content: space-between; gap: 20px;">
+          <div style="flex: 1; padding-right: 15px;">
+            <div style="font-weight: bold; font-size: 11px; margin-bottom: 6px; color: #2c3e50;">Declaration</div>
+            <div style="margin-bottom: 12px; text-align: justify;">The goods sold as part of this shipment are intended for end-user consumption and are not for retail sale distribution.</div>
             
-            <div style="font-weight: bold; font-size: 12px; margin-bottom: 2px; color: #2c3e50;">Return Policy:</div>
-            <div>If the item is defective or not as described, you may return it during delivery directly or you may request for return within 02 days of delivery for items that are defective or are different from what you ordered. Items must be complete (including freebies), free from damages and for items returned for being different from what you ordered, they must be unopened as well.</div>
+            <div style="font-weight: bold; font-size: 11px; margin-bottom: 6px; color: #2c3e50;">Return Policy:</div>
+            <div style="text-align: justify;">If the item is defective or not as described, you may return it during delivery. You may also request a return within 02 days of delivery for defective items or items different from what you ordered. All returned items must be complete with freebies, undamaged, and unopened if returned for being different from what was ordered according to our policy.</div>
           </div>
           
-          <div style="flex: 1;">
-            <div style="font-weight: bold; font-size: 12px; margin-bottom: 2px; color: #2c3e50;">Regd. Office</div>
-            <div style="margin-bottom: 4px;">Building no 2072, Chandigarh Royale City, Bollywood Gully<br>
-            Banur, SAS Nagar, Mohali, Punjab, India - 140601</div>
+          <div style="flex: 1; padding-left: 15px;">
+            <div style="font-weight: bold; font-size: 11px; margin-bottom: 6px; color: #2c3e50;">Regd. Office</div>
+            <div style="margin-bottom: 12px; text-align: justify;">Building no 2072, Chandigarh Royale City, Bollywood Gully Banur, SAS Nagar, Mohali, Punjab, India - 140601</div>
             
-            <div style="font-weight: bold; font-size: 12px; margin-bottom: 2px; color: #2c3e50;">Contact us</div>
-            <div>If you have any questions, feel free to call customer care at +91 98774 54036 or use Contact Us section in our App, or log on to www.lelekart.com/Contact us</div>
+            <div style="font-weight: bold; font-size: 11px; margin-bottom: 6px; color: #2c3e50;">Contact us</div>
+            <div style="text-align: justify;">For any questions, please call our customer care at +91 98774 54036. You can also use the Contact Us section in our App or visit www.lelekart.com/Contact-us for assistance and support regarding your orders.</div>
           </div>
         </div>
-      </div>
+    </div>
     </div>
   </div>
 </body>
@@ -12529,7 +12537,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .signature-section {
             display: flex;
             padding: 10px;
-            border-bottom: 1px solid #000;
+            
+            margin-bottom: 2px;
           }
           
           .signature {
