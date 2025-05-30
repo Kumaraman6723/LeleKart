@@ -55,14 +55,22 @@ interface ShippingSettings {
 }
 
 interface ShippingCourier {
-  id: number;
+  id: string;
   name: string;
-  serviceable_zones: string;
-  rate: {
+  rate?: {
     price: number;
-    estimated_days: number;
+    estimated_days: string;
     is_available: boolean;
+    weight_limit: number;
+    dimensions?: {
+      length: number;
+      width: number;
+      height: number;
+    };
   };
+  serviceability?: number;
+  codCharge?: number;
+  codLimit?: number;
 }
 
 interface ShippingShipment {
@@ -157,7 +165,18 @@ export default function ShippingSettingsPage() {
     queryFn: async () => {
       const res = await apiRequest("GET", "/api/shiprocket/couriers");
       if (!res.ok) throw new Error("Failed to fetch shiprocket couriers");
-      return res.json();
+      const data = await res.json();
+
+      // Log the response to help with debugging
+      console.log("Courier data received:", data);
+
+      // Ensure the response has the expected structure
+      if (!Array.isArray(data)) {
+        console.error("Expected array of couriers but got:", typeof data);
+        throw new Error("Invalid courier data format");
+      }
+
+      return data;
     },
     enabled: connectionStatus?.connected === true,
   });
@@ -704,10 +723,8 @@ export default function ShippingSettingsPage() {
                             couriers.map((courier: ShippingCourier) => (
                               <SelectItem
                                 key={courier.id}
-                                value={courier.name}
-                                disabled={
-                                  courier.rate && !courier.rate.is_available
-                                }
+                                value={courier.id}
+                                disabled={!courier.rate?.is_available}
                               >
                                 <div className="flex flex-col">
                                   <div className="font-medium">
@@ -719,11 +736,40 @@ export default function ShippingSettingsPage() {
                                         <span className="font-medium">
                                           ₹{courier.rate.price}
                                         </span>
+                                        {courier.codCharge &&
+                                          courier.codCharge > 0 && (
+                                            <span className="text-gray-500 ml-2">
+                                              (COD: ₹{courier.codCharge})
+                                            </span>
+                                          )}
                                       </div>
                                       <div className="text-xs text-gray-500">
-                                        {courier.rate.estimated_days
-                                          ? `Estimated delivery: ${courier.rate.estimated_days} days`
-                                          : ""}
+                                        {courier.rate.estimated_days && (
+                                          <span>
+                                            Estimated delivery:{" "}
+                                            {courier.rate.estimated_days}
+                                          </span>
+                                        )}
+                                        {courier.rate.weight_limit > 0 && (
+                                          <span className="ml-1">
+                                            • Max weight:{" "}
+                                            {courier.rate.weight_limit}kg
+                                          </span>
+                                        )}
+                                        {courier.rate.dimensions && (
+                                          <span className="ml-1">
+                                            • Max dimensions:{" "}
+                                            {courier.rate.dimensions.length}x
+                                            {courier.rate.dimensions.width}x
+                                            {courier.rate.dimensions.height}cm
+                                          </span>
+                                        )}
+                                        {courier.codLimit &&
+                                          courier.codLimit > 0 && (
+                                            <span className="ml-1">
+                                              • COD Limit: ₹{courier.codLimit}
+                                            </span>
+                                          )}
                                         {!courier.rate.is_available && (
                                           <span className="text-red-500 ml-1">
                                             (Not available)
@@ -806,7 +852,9 @@ export default function ShippingSettingsPage() {
                       </div>
                     ))}
                   </div>
-                ) : !pendingOrders || pendingOrders.length === 0 ? (
+                ) : !pendingOrders ||
+                  !Array.isArray(pendingOrders) ||
+                  pendingOrders.length === 0 ? (
                   <div className="py-12 text-center">
                     <PackageIcon className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
                     <h3 className="text-lg font-medium">No pending orders</h3>

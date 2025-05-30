@@ -7,6 +7,11 @@ import { eq, inArray, not, and, isNull, desc, sql } from "drizzle-orm";
 
 const SHIPROCKET_API_BASE = "https://apiv2.shiprocket.in/v1/external";
 
+interface CourierRatesResponse {
+  couriers: any[];
+  recommended_courier_company_id: string | null;
+}
+
 /**
  * Helper function to generate a fresh Shiprocket token for each API request
  * Following the recommendation to always generate a new token for each API call
@@ -14,7 +19,6 @@ const SHIPROCKET_API_BASE = "https://apiv2.shiprocket.in/v1/external";
 async function getShiprocketToken(): Promise<string | null> {
   try {
     // Get the settings from the database - order by id to get a consistent record
-    // This helps when there are multiple entries in the shiprocket_settings table
     const settings = await db
       .select()
       .from(shiprocketSettings)
@@ -26,7 +30,7 @@ async function getShiprocketToken(): Promise<string | null> {
       !settings[0].email ||
       !settings[0].password
     ) {
-      console.error("Shiprocket credentials not configured");
+      console.error("Shiprocket API credentials not configured");
       return null;
     }
 
@@ -34,7 +38,7 @@ async function getShiprocketToken(): Promise<string | null> {
     const setting = settings[0];
 
     // Always generate a fresh token as recommended
-    console.log("Generating new Shiprocket token...");
+    console.log("Generating new Shiprocket API token...");
     try {
       const response = await axios.post(`${SHIPROCKET_API_BASE}/auth/login`, {
         email: setting.email,
@@ -42,7 +46,7 @@ async function getShiprocketToken(): Promise<string | null> {
       });
 
       if (response.data.token) {
-        console.log("New Shiprocket token generated successfully");
+        console.log("New Shiprocket API token generated successfully");
 
         // Store the token for reference, but we will continue to get a fresh one each time
         await db
@@ -53,7 +57,7 @@ async function getShiprocketToken(): Promise<string | null> {
         return response.data.token;
       } else {
         console.error(
-          "Failed to generate Shiprocket token - no token in response"
+          "Failed to generate Shiprocket API token - no token in response"
         );
         return null;
       }
@@ -63,12 +67,12 @@ async function getShiprocketToken(): Promise<string | null> {
       const errorMessage =
         tokenError?.response?.data?.message || "Unknown error";
 
-      console.log("Shiprocket token generation failed:", errorMessage);
+      console.log("Shiprocket API token generation failed:", errorMessage);
 
       // For 403 Forbidden errors, account might lack necessary permissions
       if (status === 403) {
         throw new Error(
-          `Unauthorized! You do not have the required permissions.`
+          `Unauthorized! You do not have the required API permissions. Please make sure you're using API user credentials.`
         );
       }
 
@@ -78,7 +82,7 @@ async function getShiprocketToken(): Promise<string | null> {
         (errorMessage && errorMessage.toLowerCase().includes("auth"))
       ) {
         throw new Error(
-          `Authentication failed! Please check your Shiprocket credentials.`
+          `Authentication failed! Please check your Shiprocket API credentials.`
         );
       }
 
@@ -86,7 +90,6 @@ async function getShiprocketToken(): Promise<string | null> {
     }
   } catch (error: unknown) {
     console.error("Error in getShiprocketToken:", error);
-    // Add type assertion or check if needed for specific error handling here
     throw error; // Re-throw to allow proper error handling upstream
   }
 }
@@ -287,7 +290,14 @@ export async function generateShiprocketToken(req: Request, res: Response) {
       } catch (error) {
         console.error("Error generating Shiprocket token:", error);
 
-        if (error.response && error.response.data) {
+        if (
+          error &&
+          typeof error === "object" &&
+          "response" in error &&
+          error.response &&
+          typeof error.response === "object" &&
+          "data" in error.response
+        ) {
           return res.status(400).json({
             error: "Authentication failed with Shiprocket API",
             details: error.response.data,
@@ -352,7 +362,14 @@ export async function generateShiprocketToken(req: Request, res: Response) {
     } catch (error) {
       console.error("Error generating Shiprocket token:", error);
 
-      if (error.response && error.response.data) {
+      if (
+        error &&
+        typeof error === "object" &&
+        "response" in error &&
+        error.response &&
+        typeof error.response === "object" &&
+        "data" in error.response
+      ) {
         return res.status(400).json({
           error: "Authentication failed with Shiprocket API",
           details: error.response.data,
@@ -372,19 +389,96 @@ export async function generateShiprocketToken(req: Request, res: Response) {
 /**
  * Get courier rates for an order
  */
-async function getCourierRates(token: string, orderData: any) {
+async function getCourierRates(
+  token: string,
+  orderData: any
+): Promise<CourierRatesResponse> {
   try {
-    const response = await axios.post(
-      `${SHIPROCKET_API_BASE}/courier/serviceability/`,
-      {
-        pickup_postcode: "110001", // Default pickup postcode, should be configurable
-        delivery_postcode: orderData.shipping_pincode,
-        weight: orderData.weight,
-        cod: orderData.payment_method === "COD" ? 1 : 0,
-        length: orderData.length,
-        breadth: orderData.breadth,
-        height: orderData.height,
-      },
+    // Get seller's pickup pincode from settings
+    let pickupPincode = "140601"; // Default fallback pincode
+
+    if (orderData.sellerId) {
+      const sellerSettings = await storage.getSellerSettings(
+        orderData.sellerId
+      );
+      if (sellerSettings?.pickupAddress) {
+        try {
+          const pickupAddress =
+            typeof sellerSettings.pickupAddress === "string"
+              ? JSON.parse(sellerSettings.pickupAddress)
+              : sellerSettings.pickupAddress;
+
+          if (pickupAddress?.pincode) {
+            pickupPincode = pickupAddress.pincode;
+          }
+        } catch (e) {
+          console.error("Error parsing pickup address:", e);
+        }
+      }
+    }
+
+    // Ensure weight is in kg and at least 0.5kg
+    const weight = Math.max(parseFloat(orderData.weight) || 0.5, 0.5);
+
+    // Ensure COD flag is correctly set
+    const isCod = orderData.payment_method?.toLowerCase() === "cod";
+
+    console.log("Checking courier serviceability with params:", {
+      pickup_postcode: pickupPincode,
+      delivery_postcode: orderData.shipping_pincode,
+      order_id: orderData.orderId ? `ORD-${orderData.orderId}` : undefined,
+      cod: isCod ? 1 : 0,
+      weight: weight,
+      length: Math.max(orderData.length || 10, 10),
+      breadth: Math.max(orderData.breadth || 10, 10),
+      height: Math.max(orderData.height || 10, 10),
+      declared_value: orderData.total || 100, // Ensure minimum declared value
+      mode: "Surface", // Default to Surface mode
+      is_return: 0,
+      couriers_type: undefined, // Only set if needed for document couriers
+      only_local: undefined, // Only set if needed for hyperlocal couriers
+      qc_check: undefined, // Only set if is_return is 1
+    });
+
+    // Build query parameters
+    const params = new URLSearchParams({
+      pickup_postcode: pickupPincode,
+      delivery_postcode: orderData.shipping_pincode,
+      cod: isCod ? "1" : "0",
+      weight: weight.toString(),
+      length: Math.max(orderData.length || 10, 10).toString(),
+      breadth: Math.max(orderData.breadth || 10, 10).toString(),
+      height: Math.max(orderData.height || 10, 10).toString(),
+      declared_value: (orderData.total || 100).toString(), // Ensure minimum declared value
+      mode: "Surface",
+      is_return: "0",
+    });
+
+    // Add optional parameters if they exist
+    if (orderData.orderId) {
+      params.append("order_id", `ORD-${orderData.orderId}`);
+    }
+    if (orderData.couriers_type) {
+      params.append("couriers_type", orderData.couriers_type);
+    }
+    if (orderData.only_local) {
+      params.append("only_local", orderData.only_local);
+    }
+    if (orderData.is_return === 1) {
+      params.append("qc_check", orderData.qc_check);
+    }
+
+    console.log(
+      "Shiprocket API Request URL:",
+      `${SHIPROCKET_API_BASE}/courier/serviceability/?${params.toString()}`
+    );
+    console.log("Shiprocket API Request Headers:", {
+      Authorization: "Bearer [REDACTED]",
+      "Content-Type": "application/json",
+    });
+
+    const response = await axios.get(
+      `${SHIPROCKET_API_BASE}/courier/serviceability/?${params.toString()}`,
       {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -393,11 +487,85 @@ async function getCourierRates(token: string, orderData: any) {
       }
     );
 
-    return response.data;
+    console.log("Shiprocket API Response Status:", response.status);
+    console.log("Shiprocket API Response Headers:", response.headers);
+
+    // Filter and process the response to ensure valid rates
+    if (response.data && response.data.data) {
+      console.log(
+        "Raw Shiprocket response:",
+        JSON.stringify(response.data, null, 2)
+      );
+
+      const availableCouriers =
+        response.data.data.available_courier_companies || [];
+      console.log(
+        "Available couriers before filtering:",
+        availableCouriers.length
+      );
+
+      const processedCouriers = availableCouriers
+        .filter((courier: any) => {
+          // Only filter out if explicitly blocked or if it's a local courier
+          const isValid =
+            courier.blocked === 0 && courier.courier_name !== "Local";
+
+          if (!isValid) {
+            console.log("Filtered out courier:", {
+              name: courier.courier_name,
+              blocked: courier.blocked,
+              reason: courier.blocked === 1 ? "Blocked" : "Local courier",
+            });
+          }
+
+          return isValid;
+        })
+        .map((courier: any) => {
+          console.log("Processing courier:", {
+            name: courier.courier_name,
+            rate: courier.rate,
+            weight_limit: courier.surface_max_weight || courier.air_max_weight,
+          });
+
+          return {
+            ...courier,
+            // Ensure rate is a valid number and at least 40 rupees
+            rate: Math.max(parseFloat(courier.rate) || 40, 40),
+            // Calculate estimated days if not provided
+            estimated_days: courier.estimated_delivery_days || "3-5",
+            // Ensure weight limit is valid
+            weight_limit: Math.max(
+              parseFloat(
+                courier.surface_max_weight || courier.air_max_weight
+              ) || 0,
+              0
+            ),
+          };
+        })
+        .sort((a: any, b: any) => a.rate - b.rate); // Sort by rate ascending
+
+      console.log(
+        "Available couriers after filtering:",
+        processedCouriers.length
+      );
+
+      // Return only the processed couriers
+      return {
+        couriers: processedCouriers,
+        recommended_courier_company_id:
+          response.data.data.recommended_courier_company_id,
+      };
+    }
+
+    // If no data, return empty array
+    return {
+      couriers: [],
+      recommended_courier_company_id: null,
+    };
   } catch (error: any) {
     console.error(
       "Error getting courier rates:",
-      error.response?.data || error.message
+      error?.response?.data || error?.message || "Unknown error"
     );
     throw error;
   }
@@ -431,21 +599,7 @@ export async function getShiprocketCouriers(req: Request, res: Response) {
         });
       }
     } catch (tokenError: any) {
-      console.log("Shiprocket API error details:", tokenError.message);
-
-      // Catch permission errors specifically
-      if (tokenError.message && tokenError.message.includes("Unauthorized")) {
-        return res.status(403).json({
-          error: "API Permission Error",
-          message:
-            "Your Shiprocket account doesn't have the necessary API access permissions. This typically requires a Business plan or higher.",
-          details:
-            "Please upgrade your Shiprocket plan or contact Shiprocket support to enable API access.",
-          code: "PERMISSION_ERROR",
-        });
-      }
-
-      // For other token errors
+      console.error("Shiprocket API token error:", tokenError);
       return res.status(400).json({
         error: "Error getting Shiprocket token",
         message:
@@ -459,164 +613,113 @@ export async function getShiprocketCouriers(req: Request, res: Response) {
     let courierRates = null;
 
     if (orderId) {
-      // Get order details
-      const [order] = await db
-        .select()
-        .from(orders)
-        .where(eq(orders.id, parseInt(orderId as string)));
+      try {
+        // Get order details
+        const [order] = await db
+          .select()
+          .from(orders)
+          .where(eq(orders.id, parseInt(orderId as string)));
 
-      if (order) {
+        if (!order) {
+          return res.status(404).json({
+            error: "Order not found",
+            message: `Order with ID ${orderId} not found`,
+            code: "ORDER_NOT_FOUND",
+          });
+        }
+
         // Get order items
         const orderItems = await storage.getOrderItems(order.id);
+        if (!orderItems || orderItems.length === 0) {
+          return res.status(400).json({
+            error: "Order has no items",
+            message: `Order ${orderId} has no items to ship`,
+            code: "NO_ORDER_ITEMS",
+          });
+        }
 
         // Get shipping address
         const address = order.addressId
           ? await storage.getUserAddress(order.addressId)
           : null;
 
-        if (address) {
-          // Calculate total weight and dimensions
-          let totalWeight = 0;
-          let maxLength = 0;
-          let maxWidth = 0;
-          let maxHeight = 0;
-
-          for (const item of orderItems) {
-            const product = await storage.getProduct(item.productId);
-            if (product) {
-              // Add weight for each item (weight is in kg)
-              const productWeight = parseFloat(product.weight as any) || 0.5;
-              totalWeight += productWeight * item.quantity;
-
-              // Update max dimensions (dimensions are in cm)
-              const productLength = parseFloat(product.length as any) || 10;
-              const productWidth = parseFloat(product.width as any) || 10;
-              const productHeight = parseFloat(product.height as any) || 10;
-
-              maxLength = Math.max(maxLength, productLength);
-              maxWidth = Math.max(maxWidth, productWidth);
-              maxHeight = Math.max(maxHeight, productHeight);
-            }
-          }
-
-          // Get courier rates
-          try {
-            courierRates = await getCourierRates(token, {
-              shipping_pincode: address.pincode,
-              weight: totalWeight / 1000, // Convert to kg
-              length: maxLength || 10,
-              breadth: maxWidth || 10,
-              height: maxHeight || 10,
-              payment_method: order.paymentMethod,
-            });
-          } catch (rateError) {
-            console.error("Error getting courier rates:", rateError);
-            // Continue without rates
-          }
-        }
-      }
-    }
-
-    // Fetch couriers
-    try {
-      // Using a second try/catch block to handle API errors specifically
-      const response = await axios.get(
-        `${SHIPROCKET_API_BASE}/courier/courierListWithCounts`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        }
-      );
-
-      // Combine courier list with rates if available
-      const couriers = response.data.data;
-      if (courierRates && courierRates.data) {
-        // Add rates to courier data
-        const couriersWithRates = couriers.map((courier: any) => {
-          const rate = courierRates.data.available_courier_companies.find(
-            (c: any) => c.courier_company_id === courier.id
-          );
-          return {
-            ...courier,
-            rate: rate
-              ? {
-                  price: rate.rate,
-                  estimated_days: rate.estimated_days,
-                  is_available: true,
-                }
-              : {
-                  price: null,
-                  estimated_days: null,
-                  is_available: false,
-                },
-          };
-        });
-
-        return res.status(200).json({
-          ...response.data,
-          data: couriersWithRates,
-        });
-      }
-
-      return res.status(200).json(response.data);
-    } catch (apiError: any) {
-      console.error(
-        "Error in Shiprocket API call:",
-        apiError?.response?.data || apiError.message
-      );
-
-      // If we get a 401, token might have just expired (rare race condition)
-      if (apiError?.response?.status === 401) {
-        // Force token refresh by invalidating the current token in the database
-        const settings = await db
-          .select()
-          .from(shiprocketSettings)
-          .orderBy(shiprocketSettings.id);
-        if (settings && settings.length > 0) {
-          // Use the first record consistently
-          const setting = settings[0];
-          await db
-            .update(shiprocketSettings)
-            .set({ token: "" })
-            .where(eq(shiprocketSettings.id, setting.id));
-
-          // Suggest the client try again
-          return res.status(401).json({
-            error: "Token refresh required",
-            message: "Please try again in a moment",
+        if (!address) {
+          return res.status(400).json({
+            error: "Shipping address not found",
+            message: `No shipping address found for order ${orderId}`,
+            code: "NO_SHIPPING_ADDRESS",
           });
         }
-      }
 
-      // Specifically handle 403 permission errors
-      if (apiError?.response?.status === 403) {
-        return res.status(403).json({
-          error: "Unauthorized! You do not have the required permissions.",
-          message:
-            "Your Shiprocket account doesn't have the necessary API access permissions. Please upgrade your Shiprocket plan or contact Shiprocket support to enable API access for courier services.",
-          details: apiError.response.data,
+        // Calculate total weight and dimensions
+        let totalWeight = 0;
+        let maxLength = 0;
+        let maxWidth = 0;
+        let maxHeight = 0;
+
+        for (const item of orderItems) {
+          const product = await storage.getProduct(item.productId);
+          if (product) {
+            // Add weight for each item (weight is in kg)
+            const productWeight = parseFloat(product.weight as any) || 0.5;
+            totalWeight += productWeight * item.quantity;
+
+            // Update max dimensions (dimensions are in cm)
+            const productLength = parseFloat(product.length as any) || 10;
+            const productWidth = parseFloat(product.width as any) || 10;
+            const productHeight = parseFloat(product.height as any) || 10;
+
+            maxLength = Math.max(maxLength, productLength);
+            maxWidth = Math.max(maxWidth, productWidth);
+            maxHeight = Math.max(maxHeight, productHeight);
+          }
+        }
+
+        // Get courier rates
+        try {
+          courierRates = await getCourierRates(token, {
+            shipping_pincode: address.pincode,
+            weight: totalWeight / 1000, // Convert to kg
+            length: maxLength || 10,
+            breadth: maxWidth || 10,
+            height: maxHeight || 10,
+            payment_method: order.paymentMethod,
+            sellerId: orderItems[0]?.product?.sellerId, // Pass seller ID from first product
+          });
+
+          // Return the processed courier data directly
+          return res.status(200).json(courierRates);
+        } catch (rateError: any) {
+          console.error("Error getting courier rates:", rateError);
+          return res.status(500).json({
+            error: "Error getting courier rates",
+            message: rateError.message || "Failed to get courier rates",
+            code: "RATE_ERROR",
+          });
+        }
+      } catch (orderError: any) {
+        console.error("Error processing order:", orderError);
+        return res.status(500).json({
+          error: "Error processing order",
+          message: orderError.message || "Failed to process order details",
+          code: "ORDER_PROCESSING_ERROR",
         });
       }
-
-      if (apiError?.response?.data) {
-        return res.status(apiError.response.status || 400).json({
-          error: "Error from Shiprocket API",
-          message:
-            apiError.response.data.message ||
-            "An error occurred while communicating with Shiprocket API",
-          details: apiError.response.data,
-        });
-      }
-
-      return res
-        .status(500)
-        .json({ error: "Failed to communicate with Shiprocket API" });
     }
+
+    // If no orderId provided, return error
+    return res.status(400).json({
+      error: "Order ID required",
+      message: "Please provide an order ID to get courier rates",
+      code: "ORDER_ID_REQUIRED",
+    });
   } catch (error: any) {
     console.error("Error in getShiprocketCouriers handler:", error);
-    return res.status(500).json({ error: "Internal server error" });
+    return res.status(500).json({
+      error: "Internal server error",
+      message: error.message || "An unexpected error occurred",
+      code: "INTERNAL_ERROR",
+    });
   }
 }
 
@@ -731,6 +834,41 @@ export async function getPendingShiprocketOrders(req: Request, res: Response) {
 }
 
 /**
+ * Assign AWB to shipment
+ */
+async function assignAWB(token: string, shipmentId: string, courierId: string) {
+  try {
+    console.log("Assigning AWB with params:", {
+      shipment_id: [shipmentId],
+      courier_id: courierId,
+    });
+
+    const response = await axios.post(
+      `${SHIPROCKET_API_BASE}/courier/assign/awb`,
+      {
+        shipment_id: [shipmentId],
+        courier_id: courierId,
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    console.log("AWB assignment response:", response.data);
+    return response.data;
+  } catch (error: any) {
+    console.error(
+      "Error assigning AWB:",
+      error.response?.data || error.message
+    );
+    throw error;
+  }
+}
+
+/**
  * Auto-ship orders with Shiprocket
  * This will find all pending orders and ship them with the default courier
  */
@@ -762,13 +900,18 @@ export async function autoShipWithShiprocket(req: Request, res: Response) {
     // Use the first record consistently
     const setting = settings[0];
 
-    if (!setting.defaultCourier) {
-      return res.status(400).json({
-        error: "Default courier not configured",
-        message:
-          "Please configure a default courier in your Shiprocket settings to use auto-ship. You can do this in the Shiprocket dashboard under Settings > Shipping > Courier Priority.",
-      });
-    }
+    // Get seller's pickup address or use default
+    const pickupAddress = (setting as any).pickupAddress
+      ? typeof (setting as any).pickupAddress === "string"
+        ? JSON.parse((setting as any).pickupAddress)
+        : (setting as any).pickupAddress
+      : {
+          pincode: "140601", // Default LeleKart pickup pincode
+          address: "LeleKart Warehouse",
+          city: "Ludhiana",
+          state: "Punjab",
+          country: "India",
+        };
 
     // Get pending orders
     const pendingOrders = await db
@@ -889,7 +1032,7 @@ export async function autoShipWithShiprocket(req: Request, res: Response) {
             name: item.product?.name || `Product ID: ${item.productId}`,
             sku: `SKU-${item.productId}`,
             units: item.quantity,
-            selling_price: item.price / 100, // Convert from paisa to rupees
+            selling_price: item.price, // Price is already in rupees
             discount: "",
             tax: "",
             hsn: "",
@@ -899,7 +1042,7 @@ export async function autoShipWithShiprocket(req: Request, res: Response) {
           giftwrap_charges: 0,
           transaction_charges: 0,
           total_discount: 0,
-          sub_total: order.total / 100, // Convert from paisa to rupees
+          sub_total: order.total, // Price is already in rupees
           length: maxLength || 10, // Use calculated max length or default to 10cm
           breadth: maxWidth || 10, // Use calculated max width or default to 10cm
           height: maxHeight || 10, // Use calculated max height or default to 10cm
@@ -919,52 +1062,98 @@ export async function autoShipWithShiprocket(req: Request, res: Response) {
         );
 
         if (response.data.order_id) {
-          // Generate shipment with default courier
-          const shipmentResponse = await axios.post(
-            `${SHIPROCKET_API_BASE}/shipments/create/adhoc`,
-            {
-              shipment_id: response.data.shipment_id,
-              courier_id: setting.defaultCourier,
-            },
-            {
-              headers: {
-                Authorization: `Bearer ${token}`,
-                "Content-Type": "application/json",
-              },
-            }
-          );
-
-          // Update order with Shiprocket details
-          const [updatedOrder] = await db
-            .update(orders)
-            .set({
-              shiprocketOrderId: response.data.order_id.toString(),
-              shiprocketShipmentId: response.data.shipment_id.toString(),
-              shippingStatus: "processing",
-              status: "shipped",
-              ...(shipmentResponse.data
-                ? {
-                    awbCode: shipmentResponse.data.awb_code,
-                    courierName: shipmentResponse.data.courier_name,
-                    estimatedDeliveryDate: shipmentResponse.data
-                      .expected_delivery_date
-                      ? new Date(shipmentResponse.data.expected_delivery_date)
-                      : null,
-                  }
-                : {}),
-            })
-            .where(eq(orders.id, order.id))
-            .returning();
-
-          shipResults.push({
-            orderId: order.id,
-            success: true,
-            shiprocketOrderId: response.data.order_id.toString(),
-            shiprocketShipmentId: response.data.shipment_id.toString(),
-            awbCode: shipmentResponse.data?.awb_code || null,
+          // Get available couriers for this order
+          const courierRates = await getCourierRates(token, {
+            pickup_postcode: pickupAddress.pincode,
+            delivery_postcode: address.pincode,
+            weight: totalWeight / 1000,
+            cod: order.paymentMethod === "cod" ? 1 : 0,
+            length: maxLength || 10,
+            breadth: maxWidth || 10,
+            height: maxHeight || 10,
+            sellerId: orderItems[0]?.product?.sellerId, // Pass seller ID from first product
           });
 
-          successCount++;
+          // Find the default courier in available couriers
+          const defaultCourier =
+            courierRates.data.available_courier_companies.find(
+              (c: any) =>
+                c.courier_company_id === parseInt(setting.defaultCourier || "0")
+            );
+
+          if (!defaultCourier) {
+            shipResults.push({
+              orderId: order.id,
+              success: false,
+              error: "Default courier not available for this order",
+            });
+            continue;
+          }
+
+          // Assign AWB first
+          try {
+            const awbResponse = await assignAWB(
+              token,
+              response.data.shipment_id,
+              defaultCourier.courier_company_id.toString()
+            );
+
+            // Generate pickup request
+            const pickupResponse = await axios.post(
+              `${SHIPROCKET_API_BASE}/courier/generate/pickup`,
+              {
+                shipment_id: [response.data.shipment_id],
+              },
+              {
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                  "Content-Type": "application/json",
+                },
+              }
+            );
+
+            // Update order with Shiprocket details
+            const [updatedOrder] = await db
+              .update(orders)
+              .set({
+                shiprocketOrderId: response.data.order_id.toString(),
+                shiprocketShipmentId: response.data.shipment_id.toString(),
+                shippingStatus: "processing",
+                status: "shipped",
+                awbCode:
+                  awbResponse.data.awb_code || defaultCourier.awb_code || null,
+                courierName: defaultCourier.courier_name,
+                estimatedDeliveryDate: defaultCourier.etd
+                  ? new Date(defaultCourier.etd)
+                  : null,
+              })
+              .where(eq(orders.id, order.id))
+              .returning();
+
+            shipResults.push({
+              orderId: order.id,
+              success: true,
+              shiprocketOrderId: response.data.order_id.toString(),
+              shiprocketShipmentId: response.data.shipment_id.toString(),
+              awbCode:
+                awbResponse.data.awb_code || defaultCourier.awb_code || null,
+            });
+
+            successCount++;
+          } catch (error: any) {
+            console.error(
+              `Error auto-shipping order ${order.id}:`,
+              error.response?.data || error.message
+            );
+            shipResults.push({
+              orderId: order.id,
+              success: false,
+              error:
+                error.response?.data?.message ||
+                error.message ||
+                "Unknown error",
+            });
+          }
         } else {
           shipResults.push({
             orderId: order.id,
@@ -1204,7 +1393,7 @@ export async function shipOrderWithShiprocket(req: Request, res: Response) {
         name: item.product?.name || `Product ID: ${item.productId}`,
         sku: `SKU-${item.productId}`,
         units: item.quantity,
-        selling_price: item.price, // Convert from paisa to rupees
+        selling_price: item.price, // Price is already in rupees
         discount: "",
         tax: "",
         hsn: "",
@@ -1214,7 +1403,7 @@ export async function shipOrderWithShiprocket(req: Request, res: Response) {
       giftwrap_charges: 0,
       transaction_charges: 0,
       total_discount: 0,
-      sub_total: order.total, // Convert from paisa to rupees
+      sub_total: order.total, // Price is already in rupees
       length: maxLength || 10, // Use calculated max length or default to 10cm
       breadth: maxWidth || 10, // Use calculated max width or default to 10cm
       height: maxHeight || 10, // Use calculated max height or default to 10cm
@@ -1234,27 +1423,55 @@ export async function shipOrderWithShiprocket(req: Request, res: Response) {
     );
 
     if (response.data.order_id) {
-      // If courier company provided, generate shipment
+      // If courier company provided, assign AWB and generate shipment
       let shipmentResponse = null;
       if (courierCompany) {
         try {
-          shipmentResponse = await axios.post(
-            `${SHIPROCKET_API_BASE}/shipments/create/adhoc`,
-            {
-              shipment_id: response.data.shipment_id,
-              courier_id: courierCompany,
-            },
-            {
-              headers: {
-                Authorization: `Bearer ${token}`,
-                "Content-Type": "application/json",
-              },
-            }
+          // First assign AWB
+          const awbResponse = await assignAWB(
+            token,
+            response.data.shipment_id,
+            courierCompany
           );
-        } catch (shipmentError: any) {
+
+          // Then generate pickup
+          try {
+            shipmentResponse = await axios.post(
+              `${SHIPROCKET_API_BASE}/courier/generate/pickup`,
+              {
+                shipment_id: [response.data.shipment_id],
+              },
+              {
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                  "Content-Type": "application/json",
+                },
+              }
+            );
+          } catch (shipmentError: any) {
+            console.error(
+              "Error generating shipment:",
+              shipmentError.response?.data || shipmentError.message
+            );
+
+            // If the error is "Already in Pickup Queue", we can proceed as this is not a critical error
+            if (
+              shipmentError.response?.data?.message ===
+              "Already in Pickup Queue."
+            ) {
+              console.log(
+                "Shipment is already in pickup queue, proceeding with order update"
+              );
+              // Continue with order creation even if pickup is already queued
+            } else {
+              // For other errors, we should handle them appropriately
+              throw shipmentError;
+            }
+          }
+        } catch (error: any) {
           console.error(
             "Error generating shipment:",
-            shipmentError.response?.data || shipmentError.message
+            error.response?.data || error.message
           );
           // Continue with order creation even if shipment generation fails
         }
@@ -1436,6 +1653,69 @@ export async function testShiprocketConnection(req: Request, res: Response) {
       message:
         error.message ||
         "An unexpected error occurred while processing your request.",
+    });
+  }
+}
+
+/**
+ * Check Shiprocket token status
+ */
+export async function checkShiprocketToken(req: Request, res: Response) {
+  try {
+    // Check if user is authenticated and is admin
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+
+    // Get token (this will automatically refresh if expired)
+    let token;
+    try {
+      token = await getShiprocketToken();
+
+      if (!token) {
+        return res.status(400).json({
+          error: "Shiprocket token not available",
+          message:
+            "Please check your Shiprocket credentials or generate a new token.",
+          code: "TOKEN_MISSING",
+        });
+      }
+
+      // Test API access by getting courier companies
+      const response = await axios.get(
+        `${SHIPROCKET_API_BASE}/courier/courierListWithCounts`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      return res.status(200).json({
+        success: true,
+        message: "Successfully connected to Shiprocket API",
+        data: response.data,
+      });
+    } catch (tokenError: any) {
+      console.error("Shiprocket API token error:", tokenError);
+      return res.status(400).json({
+        error: "Error getting Shiprocket token",
+        message:
+          tokenError.message || "Please check your Shiprocket credentials.",
+        code: "TOKEN_ERROR",
+      });
+    }
+  } catch (error: any) {
+    console.error("Error in checkShiprocketToken:", error);
+    return res.status(500).json({
+      error: "Internal server error",
+      message: error.message || "An unexpected error occurred",
+      code: "INTERNAL_ERROR",
     });
   }
 }
