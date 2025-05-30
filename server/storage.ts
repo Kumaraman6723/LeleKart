@@ -503,9 +503,7 @@ export interface IStorage {
   updateProductVariantStock(variantId: number, newStock: number): Promise<void>;
 
   // Cart operations
-  getCartItems(
-    userId: number
-  ): Promise<
+  getCartItems(userId: number): Promise<
     {
       id: number;
       quantity: number;
@@ -2927,9 +2925,7 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async getProduct(
-    id: number
-  ): Promise<
+  async getProduct(id: number): Promise<
     | (Product & {
         categoryGstRate?: number | null;
         sellerName?: string;
@@ -4074,9 +4070,7 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async getCartItems(
-    userId: number
-  ): Promise<
+  async getCartItems(userId: number): Promise<
     {
       id: number;
       quantity: number;

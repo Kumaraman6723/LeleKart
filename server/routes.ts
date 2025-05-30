@@ -12321,7 +12321,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           <td>{{add @index 1}}</td>
           <td class="description-cell">{{this.product.name}}</td>
           <td>{{this.quantity}}</td>
-          <td>{{formatMoney this.price}}</td>
+          <td>{{formatMoney this.product.mrp}}</td>
           <td>{{formatMoney (subtract this.product.mrp this.price)}}</td>
           <td>{{calculateTaxableValue this.price this.quantity this.product.gstRate}}</td>
           <td class="taxes-cell">{{{calculateTaxes this.price this.quantity this.product.gstRate ../order.shippingDetails.state ../seller.pickupAddress.state}}}</td>
